@@ -253,3 +253,119 @@ textarea {
   color: #111827;
   font-weight: bold;
 }
+
+.campaign-form {
+  margin-top: 25px;
+  padding: 22px;
+  background: white;
+  border-radius: 22px;
+}
+
+.campaign-form label {
+  display: block;
+  margin-bottom: 20px;
+  font-weight: 700;
+}
+
+.campaign-form input,
+.campaign-form select {
+  width: 100%;
+  margin-top: 8px;
+  padding: 15px;
+  border: 1px solid #d1d5db;
+  border-radius: 13px;
+  background: white;
+}
+
+.back-button {
+  padding: 10px 14px;
+  margin-bottom: 15px;
+  border-radius: 12px;
+  background: white;
+}
+
+.campaign-list {
+  margin-top: 20px;
+}
+
+.campaign-card {
+  margin-bottom: 14px;
+  padding: 20px;
+  background: white;
+  border-radius: 20px;
+}
+
+.campaign-card-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+}
+
+.campaign-card h3 {
+  margin: 5px 0;
+}
+
+.campaign-card small {
+  color: #6b7280;
+}
+
+.campaign-status {
+  height: fit-content;
+  padding: 7px 11px;
+  border-radius: 20px;
+  background: #f3f4f6;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.campaign-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 15px 0;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.delete-campaign {
+  padding: 9px 12px;
+  border-radius: 10px;
+}
+
+.connection-list {
+  margin-top: 25px;
+}
+
+.connection-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+  padding: 20px;
+  margin-bottom: 14px;
+  background: white;
+  border-radius: 20px;
+}
+
+.connection-card strong {
+  font-size: 17px;
+}
+
+.connection-card p {
+  margin: 6px 0 0;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.connection-card button {
+  padding: 11px 15px;
+  border-radius: 12px;
+  background: #111827;
+  color: white;
+  font-weight: bold;
+}
+
+.connection-card button:disabled {
+  background: #e5e7eb;
+  color: #9ca3af;
+}

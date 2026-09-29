@@ -7,7 +7,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "server": "node server/index.js"
   },
   "repository": {
     "type": "git",
@@ -16,12 +17,18 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "bugs": {
     "url": "https://github.com/ahmedmsaad1347-ops/marketflow-app/issues"
   },
   "homepage": "https://github.com/ahmedmsaad1347-ops/marketflow-app#readme",
   "devDependencies": {
     "vite": "^8.3.1"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^18.0.4",
+    "express": "^5.2.1",
+    "openai": "^7.25.0"
   }
 }

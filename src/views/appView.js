@@ -12,55 +12,174 @@ export function loginView() {
           <button type="submit">Sign in</button>
         </form>
 
-        <p id="message" class="message"></p>
+        <p id="message"></p>
       </section>
     </main>
   `;
 }
 
-export function dashboardView(user) {
+export function appView(user) {
   return `
-    <div class="dashboard">
-      <header>
+    <div class="app-shell">
+      <header class="topbar">
         <div>
-          <h2>MarketFlow</h2>
+          <span class="brand">MarketFlow</span>
           <small>${user}</small>
         </div>
         <button id="logoutBtn" class="logout">Logout</button>
       </header>
 
-      <section class="welcome">
-        <h1>Marketing Dashboard</h1>
-        <p>Manage your marketing from one place.</p>
-      </section>
+      <main id="pageContent"></main>
 
-      <section class="cards">
-        <article>
-          <span>💬</span>
-          <h3>Messages</h3>
-          <p>0 conversations</p>
-        </article>
+      <nav class="bottom-nav">
+        <button data-page="dashboard" class="nav-btn active">
+          <span>⌂</span>Home
+        </button>
 
-        <article>
-          <span>📢</span>
-          <h3>Campaigns</h3>
-          <p>0 active campaigns</p>
-        </article>
+        <button data-page="messages" class="nav-btn">
+          <span>💬</span>Messages
+        </button>
 
-        <article>
-          <span>🤖</span>
-          <h3>AI Agent</h3>
-          <p>Ready</p>
-        </article>
+        <button data-page="campaigns" class="nav-btn">
+          <span>📢</span>Campaigns
+        </button>
 
-        <article>
-          <span>📊</span>
-          <h3>Reports</h3>
-          <p>No reports yet</p>
-        </article>
-      </section>
+        <button data-page="ai" class="nav-btn">
+          <span>✦</span>AI
+        </button>
 
-      <button class="primary-action">+ Create Campaign</button>
+        <button data-page="reports" class="nav-btn">
+          <span>📊</span>Reports
+        </button>
+      </nav>
     </div>
+  `;
+}
+
+export function pageView(page) {
+  if (page === "messages") {
+    return `
+      <section class="page">
+        <h1>Messages</h1>
+        <p class="subtitle">Manage customer conversations.</p>
+
+        <div class="empty-card">
+          <div class="big-icon">💬</div>
+          <h2>No conversations yet</h2>
+          <p>Instagram, Facebook and other channels will appear here.</p>
+        </div>
+      </section>
+    `;
+  }
+
+  if (page === "campaigns") {
+    return `
+      <section class="page">
+        <h1>Campaigns</h1>
+        <p class="subtitle">Create and manage your marketing campaigns.</p>
+
+        <button id="createCampaignBtn" class="primary-action">
+          + Create Campaign
+        </button>
+
+        <div class="empty-card">
+          <div class="big-icon">📢</div>
+          <h2>No campaigns yet</h2>
+          <p>Your active and scheduled campaigns will appear here.</p>
+        </div>
+      </section>
+    `;
+  }
+
+  if (page === "ai") {
+    return `
+      <section class="page">
+        <h1>AI Agent</h1>
+        <p class="subtitle">Your marketing assistant.</p>
+
+        <div class="ai-card">
+          <div class="ai-status">
+            <span class="status-dot"></span>
+            AI Agent Ready
+          </div>
+
+          <h2>What should we market today?</h2>
+
+          <textarea
+            placeholder="Example: Create a campaign for my clothing store..."
+          ></textarea>
+
+          <button class="primary-action">
+            Generate with AI
+          </button>
+        </div>
+      </section>
+    `;
+  }
+
+  if (page === "reports") {
+    return `
+      <section class="page">
+        <h1>Reports</h1>
+        <p class="subtitle">Track performance across your channels.</p>
+
+        <div class="empty-card">
+          <div class="big-icon">📊</div>
+          <h2>No data yet</h2>
+          <p>Campaign performance and customer activity will appear here.</p>
+        </div>
+      </section>
+    `;
+  }
+
+  return `
+    <section class="page">
+      <div class="hero">
+        <p>Welcome back 👋</p>
+        <h1>Marketing Dashboard</h1>
+        <span>Everything you need in one place.</span>
+      </div>
+
+      <div class="stats">
+        <article>
+          <strong>0</strong>
+          <span>Messages</span>
+        </article>
+
+        <article>
+          <strong>0</strong>
+          <span>Campaigns</span>
+        </article>
+
+        <article>
+          <strong>0</strong>
+          <span>Leads</span>
+        </article>
+      </div>
+
+      <h2 class="section-title">Quick actions</h2>
+
+      <div class="quick-grid">
+        <button data-page="campaigns">
+          <span>📢</span>
+          New Campaign
+        </button>
+
+        <button data-page="ai">
+          <span>✦</span>
+          Ask AI
+        </button>
+
+        <button data-page="messages">
+          <span>💬</span>
+          Messages
+        </button>
+
+        <button data-page="reports">
+          <span>📊</span>
+          Reports
+        </button>
+      </div>
+    </section>
   `;
 }

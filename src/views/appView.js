@@ -401,34 +401,313 @@ export function aiView() {
   `;
 }
 
-export function reportsView() {
+export function reportsView(
+  analytics,
+  days = 30
+) {
+  const money = value =>
+    Number(value || 0)
+      .toLocaleString(
+        undefined,
+        {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 2
+        }
+      );
+
+  const number = value =>
+    Number(value || 0)
+      .toLocaleString();
+
+  const summary =
+    analytics.summary || {};
+
+  const comparison =
+    analytics.comparison || {};
+
+  const change = key => {
+    const value = comparison[key];
+
+    if (value === null) {
+      return "New";
+    }
+
+    if (!value) {
+      return "0%";
+    }
+
+    return `${value > 0 ? "+" : ""}${value}%`;
+  };
+
+  const topCampaigns =
+    analytics.top_campaigns || [];
+
+  const campaignRows =
+    topCampaigns.length
+      ? topCampaigns.map(
+          campaign => `
+            <div class="analytics-table-row">
+              <div>
+                <strong>${campaign.name}</strong>
+                <small>${campaign.provider}</small>
+              </div>
+
+              <span>
+                $${money(campaign.spend)}
+              </span>
+
+              <span>
+                $${money(campaign.revenue)}
+              </span>
+
+              <span>
+                ${campaign.roas}x
+              </span>
+            </div>
+          `
+        ).join("")
+      : `
+        <div class="analytics-empty-row">
+          No campaign performance data yet.
+        </div>
+      `;
+
   return `
-    <section class="page">
+    <section class="page analytics-page">
 
-      <h1>Reports</h1>
+      <div class="analytics-header">
+        <div>
+          <p class="analytics-kicker">
+            BUSINESS INTELLIGENCE
+          </p>
 
-      <p class="subtitle">
-        Track performance across your channels.
-      </p>
+          <h1>Business Analytics</h1>
 
-      <div class="empty-card">
-
-        <div class="big-icon">
-          📊
+          <p class="subtitle">
+            Performance across your connected
+            marketing and sales channels.
+          </p>
         </div>
 
-        <h2>No data yet</h2>
+        <div class="analytics-period">
+          <button
+            data-analytics-days="7"
+            class="${days === 7 ? "active" : ""}"
+          >
+            7D
+          </button>
 
-        <p>
-          Campaign performance and customer
-          activity will appear here.
-        </p>
+          <button
+            data-analytics-days="30"
+            class="${days === 30 ? "active" : ""}"
+          >
+            30D
+          </button>
 
+          <button
+            data-analytics-days="90"
+            class="${days === 90 ? "active" : ""}"
+          >
+            90D
+          </button>
+        </div>
+      </div>
+
+      ${
+        !analytics.has_data
+          ? `
+            <div class="analytics-no-data">
+              <div class="big-icon">📊</div>
+
+              <h2>No analytics data yet</h2>
+
+              <p>
+                The analytics engine is ready.
+                Real results will appear here
+                after a marketing, sales or
+                advertising account is connected.
+              </p>
+
+              <button
+                data-page="connections"
+                class="primary-action"
+              >
+                Connect Data Source
+              </button>
+            </div>
+          `
+          : ""
+      }
+
+      <div class="analytics-kpis">
+
+        <article>
+          <small>Revenue</small>
+          <strong>
+            $${money(summary.revenue)}
+          </strong>
+          <span>
+            ${change("revenue")}
+          </span>
+        </article>
+
+        <article>
+          <small>Ad Spend</small>
+          <strong>
+            $${money(summary.spend)}
+          </strong>
+          <span>
+            ${change("spend")}
+          </span>
+        </article>
+
+        <article>
+          <small>ROAS</small>
+          <strong>
+            ${summary.roas || 0}x
+          </strong>
+          <span>Return on ad spend</span>
+        </article>
+
+        <article>
+          <small>Conversions</small>
+          <strong>
+            ${number(summary.conversions)}
+          </strong>
+          <span>
+            ${change("conversions")}
+          </span>
+        </article>
+
+        <article>
+          <small>Leads</small>
+          <strong>
+            ${number(summary.leads)}
+          </strong>
+          <span>
+            ${change("leads")}
+          </span>
+        </article>
+
+        <article>
+          <small>CPA</small>
+          <strong>
+            $${money(summary.cpa)}
+          </strong>
+          <span>Cost per conversion</span>
+        </article>
+
+        <article>
+          <small>CPC</small>
+          <strong>
+            $${money(summary.cpc)}
+          </strong>
+          <span>Cost per click</span>
+        </article>
+
+        <article>
+          <small>CTR</small>
+          <strong>
+            ${summary.ctr || 0}%
+          </strong>
+          <span>
+            ${number(summary.clicks)} clicks
+          </span>
+        </article>
+
+      </div>
+
+      <div class="analytics-chart-card">
+        <div class="analytics-card-title">
+          <div>
+            <h2>Revenue vs Spend</h2>
+            <p>
+              Daily financial performance
+            </p>
+          </div>
+        </div>
+
+        <div class="analytics-chart-wrap">
+          <canvas id="moneyChart"></canvas>
+        </div>
+      </div>
+
+      <div class="analytics-chart-card">
+        <div class="analytics-card-title">
+          <div>
+            <h2>Leads & Conversions</h2>
+            <p>
+              Business acquisition trend
+            </p>
+          </div>
+        </div>
+
+        <div class="analytics-chart-wrap">
+          <canvas id="funnelChart"></canvas>
+        </div>
+      </div>
+
+      <div class="analytics-chart-card">
+        <div class="analytics-card-title">
+          <div>
+            <h2>Channel Performance</h2>
+            <p>
+              Revenue contribution by source
+            </p>
+          </div>
+        </div>
+
+        <div class="analytics-chart-wrap analytics-chart-small">
+          <canvas id="platformChart"></canvas>
+        </div>
+      </div>
+
+      <div class="analytics-chart-card">
+
+        <div class="analytics-card-title">
+          <div>
+            <h2>Top Campaigns</h2>
+            <p>
+              Ranked by generated revenue
+            </p>
+          </div>
+        </div>
+
+        <div class="analytics-table-head">
+          <span>Campaign</span>
+          <span>Spend</span>
+          <span>Revenue</span>
+          <span>ROAS</span>
+        </div>
+
+        ${campaignRows}
+
+      </div>
+
+      <div class="analytics-data-status">
+        <span>
+          ${
+            analytics.data_status?.providers || 0
+          } connected data sources
+        </span>
+
+        <span>
+          ${
+            analytics.data_status?.last_updated
+              ? `Last sync: ${
+                  new Date(
+                    analytics.data_status.last_updated
+                  ).toLocaleString()
+                }`
+              : "Waiting for first data sync"
+          }
+        </span>
       </div>
 
     </section>
   `;
 }
+
 
 export function connectionsView() {
   return `

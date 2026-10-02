@@ -74,3 +74,9 @@ export function deleteCampaign(id) {
     method: "DELETE"
   });
 }
+
+export function getAnalytics(days = 30) {
+  return request(
+    `/api/analytics/overview?days=${days}`
+  );
+}

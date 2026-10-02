@@ -5,7 +5,8 @@ import {
   createCampaign,
   getCampaigns,
   getCampaign,
-  deleteCampaign
+  deleteCampaign,
+  getAnalytics
 } from "../services/api.js";
 
 import {
@@ -21,6 +22,10 @@ import {
   settingsView,
   campaignReviewView
 } from "../views/appView.js";
+
+import {
+  renderAnalyticsCharts
+} from "../services/analyticsCharts.js";
 
 const app = document.querySelector("#app");
 
@@ -97,8 +102,20 @@ async function showPage(page) {
     }
 
     if (page === "reports") {
+      const analytics =
+        await getAnalytics(30);
+
       pageContent.innerHTML =
-        reportsView();
+        reportsView(
+          analytics,
+          30
+        );
+
+      renderAnalyticsCharts(
+        analytics
+      );
+
+      attachAnalyticsFilters();
     }
 
     if (page === "connections") {
@@ -145,6 +162,50 @@ async function showPage(page) {
     `;
   }
 }
+
+function attachAnalyticsFilters() {
+  document
+    .querySelectorAll(
+      "[data-analytics-days]"
+    )
+    .forEach(button => {
+
+      button.onclick = async () => {
+        const days =
+          Number(
+            button.dataset.analyticsDays
+          );
+
+        const response =
+          await getAnalytics(days);
+
+        const pageContent =
+          document.querySelector(
+            "#pageContent"
+          );
+
+        pageContent.innerHTML =
+          reportsView(
+            response,
+            days
+          );
+
+        renderAnalyticsCharts(
+          response
+        );
+
+        attachNavigation();
+        attachAnalyticsFilters();
+
+        setActiveNavigation(
+          "reports"
+        );
+      };
+
+    });
+}
+
+
 
 function attachNavigation() {
   document

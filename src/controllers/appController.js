@@ -1,5 +1,6 @@
 import { AuthModel } from "../models/authModel.js";
 import { CampaignModel } from "../models/campaignModel.js";
+import { previewCampaign } from "../services/api.js";
 
 import {
   loginView,
@@ -12,7 +13,8 @@ import {
   reportsView,
   connectionsView,
   notificationsView,
-  settingsView
+  settingsView,
+  campaignReviewView
 } from "../views/appView.js";
 
 const app = document.querySelector("#app");
@@ -119,6 +121,7 @@ function showPage(page) {
   attachNavigation();
   attachCampaignForm();
   attachCampaignDelete();
+  attachCampaignReview();
 
   window.scrollTo(0, 0);
 }
@@ -136,19 +139,25 @@ function attachNavigation() {
 }
 
 function attachCampaignForm() {
-  const form =
-    document.querySelector("#campaignForm");
+  const form = document.querySelector("#campaignForm");
 
   if (!form) return;
 
-  form.addEventListener("submit", event => {
-
+  form.addEventListener("submit", async event => {
     event.preventDefault();
 
-    const formData =
-      new FormData(form);
+    const submitButton = form.querySelector(
+      'button[type="submit"]'
+    );
 
-    CampaignModel.create({
+    const originalText = submitButton.textContent;
+
+    submitButton.disabled = true;
+    submitButton.textContent = "Checking campaign...";
+
+    const formData = new FormData(form);
+
+    const payload = {
       name: formData.get("name"),
       product: formData.get("product"),
       audience: formData.get("audience"),
@@ -156,9 +165,27 @@ function attachCampaignForm() {
       platform: formData.get("platform"),
       budget: formData.get("budget"),
       goal: formData.get("goal")
-    });
+    };
 
-    showPage("campaigns");
+    try {
+      const response = await previewCampaign(payload);
+
+      const savedCampaign = CampaignModel.create(
+        response.campaign
+      );
+
+      showCampaignReview(savedCampaign.id);
+
+    } catch (error) {
+      alert(
+        "Campaign could not be validated.\n\n" +
+        error.message +
+        "\n\nMake sure the Python backend is running."
+      );
+
+      submitButton.disabled = false;
+      submitButton.textContent = originalText;
+    }
   });
 }
 
@@ -178,6 +205,35 @@ function attachCampaignDelete() {
       };
 
     });
+}
+
+function attachCampaignReview() {
+  document
+    .querySelectorAll("[data-review-campaign]")
+    .forEach(button => {
+
+      button.onclick = () => {
+        showCampaignReview(
+          button.dataset.reviewCampaign
+        );
+      };
+
+    });
+}
+
+function showCampaignReview(id) {
+  const campaign = CampaignModel.getById(id);
+
+  const pageContent =
+    document.querySelector("#pageContent");
+
+  pageContent.innerHTML =
+    campaignReviewView(campaign);
+
+  setActiveNavigation("campaigns");
+  attachNavigation();
+
+  window.scrollTo(0, 0);
 }
 
 function setActiveNavigation(page) {

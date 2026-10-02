@@ -9,6 +9,12 @@ export const CampaignModel = {
     }
   },
 
+  getById(id) {
+    return this.getAll().find(
+      campaign => campaign.id === Number(id)
+    );
+  },
+
   create(data) {
     const campaigns = this.getAll();
 

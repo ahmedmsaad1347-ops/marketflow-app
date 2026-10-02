@@ -369,3 +369,77 @@ textarea {
   background: #e5e7eb;
   color: #9ca3af;
 }
+
+.review-kicker {
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.review-warning,
+.review-card,
+.launch-checklist {
+  margin-top: 18px;
+  padding: 20px;
+  background: white;
+  border-radius: 20px;
+}
+
+.review-warning {
+  display: grid;
+  gap: 7px;
+}
+
+.review-warning span {
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.review-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 14px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.review-row:last-child {
+  border-bottom: 0;
+}
+
+.review-row span {
+  color: #6b7280;
+}
+
+.review-row strong {
+  text-align: right;
+}
+
+.launch-checklist p {
+  margin: 12px 0;
+}
+
+.campaign-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.review-campaign {
+  flex: 1;
+  padding: 12px;
+  background: #111827;
+  color: white;
+  border-radius: 12px;
+  font-weight: 700;
+}
+
+.delete-campaign {
+  padding: 12px 14px;
+}
+
+button:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}

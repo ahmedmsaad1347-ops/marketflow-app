@@ -176,12 +176,23 @@ export function campaignsView(campaigns) {
             <span>💰 ${campaign.budget}</span>
           </div>
 
-          <button
-            class="delete-campaign"
-            data-delete-campaign="${campaign.id}"
-          >
-            Delete
-          </button>
+          <div class="campaign-actions">
+
+            <button
+              class="review-campaign"
+              data-review-campaign="${campaign.id}"
+            >
+              Review & Launch
+            </button>
+
+            <button
+              class="delete-campaign"
+              data-delete-campaign="${campaign.id}"
+            >
+              Delete
+            </button>
+
+          </div>
 
         </article>
       `).join("")
@@ -526,6 +537,99 @@ export function settingsView(user) {
         </button>
 
       </div>
+    </section>
+  `;
+}
+
+export function campaignReviewView(campaign) {
+  if (!campaign) {
+    return `
+      <section class="page">
+        <button data-page="campaigns" class="back-button">← Back</button>
+
+        <div class="empty-card">
+          <h2>Campaign not found</h2>
+        </div>
+      </section>
+    `;
+  }
+
+  return `
+    <section class="page">
+
+      <button data-page="campaigns" class="back-button">
+        ← Back
+      </button>
+
+      <p class="review-kicker">
+        REVIEW BEFORE LAUNCH
+      </p>
+
+      <h1>${campaign.name}</h1>
+
+      <p class="subtitle">
+        Check everything before publishing.
+      </p>
+
+      <div class="review-warning">
+        <strong>No money will be spent yet.</strong>
+
+        <span>
+          Your advertising account must be connected
+          before final launch.
+        </span>
+      </div>
+
+      <div class="review-card">
+
+        <div class="review-row">
+          <span>Product</span>
+          <strong>${campaign.product}</strong>
+        </div>
+
+        <div class="review-row">
+          <span>Audience</span>
+          <strong>${campaign.audience}</strong>
+        </div>
+
+        <div class="review-row">
+          <span>Country</span>
+          <strong>${campaign.country}</strong>
+        </div>
+
+        <div class="review-row">
+          <span>Platform</span>
+          <strong>${campaign.platform}</strong>
+        </div>
+
+        <div class="review-row">
+          <span>Budget</span>
+          <strong>${campaign.budget}</strong>
+        </div>
+
+        <div class="review-row">
+          <span>Goal</span>
+          <strong>${campaign.goal}</strong>
+        </div>
+
+      </div>
+
+      <div class="launch-checklist">
+        <h2>Launch checklist</h2>
+
+        <p>✅ Campaign validated by MarketFlow API</p>
+        <p>✅ Campaign saved as Draft</p>
+        <p>○ Advertising account connection required</p>
+        <p>○ Final launch confirmation required</p>
+      </div>
+
+      <button
+        data-page="connections"
+        class="primary-action"
+      >
+        Connect Account to Launch
+      </button>
+
     </section>
   `;
 }

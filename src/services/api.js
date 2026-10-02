@@ -18,6 +18,10 @@ async function request(path, options = {}) {
   return data;
 }
 
+export function checkBackend() {
+  return request("/api/health");
+}
+
 export function previewCampaign(campaign) {
   return request("/api/campaigns/preview", {
     method: "POST",
@@ -25,6 +29,23 @@ export function previewCampaign(campaign) {
   });
 }
 
-export function checkBackend() {
-  return request("/api/health");
+export function createCampaign(campaign) {
+  return request("/api/campaigns", {
+    method: "POST",
+    body: JSON.stringify(campaign)
+  });
+}
+
+export function getCampaigns() {
+  return request("/api/campaigns");
+}
+
+export function getCampaign(id) {
+  return request(`/api/campaigns/${id}`);
+}
+
+export function deleteCampaign(id) {
+  return request(`/api/campaigns/${id}`, {
+    method: "DELETE"
+  });
 }

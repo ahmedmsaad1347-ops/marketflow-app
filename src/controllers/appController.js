@@ -1,6 +1,12 @@
 import { AuthModel } from "../models/authModel.js";
-import { CampaignModel } from "../models/campaignModel.js";
-import { previewCampaign } from "../services/api.js";
+
+import {
+  previewCampaign,
+  createCampaign,
+  getCampaigns,
+  getCampaign,
+  deleteCampaign
+} from "../services/api.js";
 
 import {
   loginView,
@@ -35,7 +41,6 @@ function showLogin() {
   document
     .querySelector("#loginForm")
     .addEventListener("submit", event => {
-
       event.preventDefault();
 
       const email =
@@ -59,101 +64,113 @@ function showApp(user) {
   document
     .querySelector("#logoutBtn")
     .addEventListener("click", () => {
-
       AuthModel.logout();
       showLogin();
-
     });
 
   showPage("dashboard");
 }
 
-function showPage(page) {
+async function showPage(page) {
   const pageContent =
     document.querySelector("#pageContent");
 
-  const campaigns =
-    CampaignModel.getAll();
+  try {
+    if (page === "dashboard") {
+      const response = await getCampaigns();
 
-  if (page === "dashboard") {
-    pageContent.innerHTML =
-      dashboardView(campaigns);
+      pageContent.innerHTML =
+        dashboardView(response.campaigns);
+    }
+
+    if (page === "campaigns") {
+      const response = await getCampaigns();
+
+      pageContent.innerHTML =
+        campaignsView(response.campaigns);
+    }
+
+    if (page === "campaign-create") {
+      pageContent.innerHTML =
+        campaignFormView();
+    }
+
+    if (page === "messages") {
+      pageContent.innerHTML =
+        messagesView();
+    }
+
+    if (page === "ai") {
+      pageContent.innerHTML =
+        aiView();
+    }
+
+    if (page === "reports") {
+      pageContent.innerHTML =
+        reportsView();
+    }
+
+    if (page === "connections") {
+      pageContent.innerHTML =
+        connectionsView();
+    }
+
+    if (page === "notifications") {
+      pageContent.innerHTML =
+        notificationsView();
+    }
+
+    if (page === "settings") {
+      pageContent.innerHTML =
+        settingsView(AuthModel.getUser());
+    }
+
+    setActiveNavigation(page);
+
+    attachNavigation();
+    attachCampaignForm();
+    attachCampaignDelete();
+    attachCampaignReview();
+
+    window.scrollTo(0, 0);
+
+  } catch (error) {
+    pageContent.innerHTML = `
+      <section class="page">
+        <div class="empty-card">
+          <h2>Connection error</h2>
+          <p>${error.message}</p>
+          <p>Make sure the Python backend is running.</p>
+        </div>
+      </section>
+    `;
   }
-
-  if (page === "campaigns") {
-    pageContent.innerHTML =
-      campaignsView(campaigns);
-  }
-
-  if (page === "campaign-create") {
-    pageContent.innerHTML =
-      campaignFormView();
-  }
-
-  if (page === "messages") {
-    pageContent.innerHTML =
-      messagesView();
-  }
-
-  if (page === "ai") {
-    pageContent.innerHTML =
-      aiView();
-  }
-
-  if (page === "reports") {
-    pageContent.innerHTML = reportsView();
-  }
-
-  if (page === "connections") {
-    pageContent.innerHTML = connectionsView();
-  }
-
-  if (page === "notifications") {
-    pageContent.innerHTML = notificationsView();
-  }
-
-  if (page === "settings") {
-    pageContent.innerHTML = settingsView(AuthModel.getUser());
-  }
-
-  setActiveNavigation(page);
-
-  attachNavigation();
-  attachCampaignForm();
-  attachCampaignDelete();
-  attachCampaignReview();
-
-  window.scrollTo(0, 0);
 }
 
 function attachNavigation() {
   document
     .querySelectorAll("[data-page]")
     .forEach(button => {
-
       button.onclick = () => {
         showPage(button.dataset.page);
       };
-
     });
 }
 
 function attachCampaignForm() {
-  const form = document.querySelector("#campaignForm");
+  const form =
+    document.querySelector("#campaignForm");
 
   if (!form) return;
 
   form.addEventListener("submit", async event => {
     event.preventDefault();
 
-    const submitButton = form.querySelector(
-      'button[type="submit"]'
-    );
-
-    const originalText = submitButton.textContent;
+    const submitButton =
+      form.querySelector('button[type="submit"]');
 
     submitButton.disabled = true;
-    submitButton.textContent = "Checking campaign...";
+    submitButton.textContent = "Saving campaign...";
 
     const formData = new FormData(form);
 
@@ -168,23 +185,23 @@ function attachCampaignForm() {
     };
 
     try {
-      const response = await previewCampaign(payload);
+      await previewCampaign(payload);
 
-      const savedCampaign = CampaignModel.create(
-        response.campaign
+      const response =
+        await createCampaign(payload);
+
+      await showCampaignReview(
+        response.campaign.id
       );
-
-      showCampaignReview(savedCampaign.id);
 
     } catch (error) {
       alert(
-        "Campaign could not be validated.\n\n" +
-        error.message +
-        "\n\nMake sure the Python backend is running."
+        "Campaign could not be saved.\n\n" +
+        error.message
       );
 
       submitButton.disabled = false;
-      submitButton.textContent = originalText;
+      submitButton.textContent = "Save Campaign";
     }
   });
 }
@@ -193,17 +210,18 @@ function attachCampaignDelete() {
   document
     .querySelectorAll("[data-delete-campaign]")
     .forEach(button => {
+      button.onclick = async () => {
+        try {
+          await deleteCampaign(
+            button.dataset.deleteCampaign
+          );
 
-      button.onclick = () => {
+          await showPage("campaigns");
 
-        const id =
-          button.dataset.deleteCampaign;
-
-        CampaignModel.remove(id);
-
-        showPage("campaigns");
+        } catch (error) {
+          alert(error.message);
+        }
       };
-
     });
 }
 
@@ -211,29 +229,33 @@ function attachCampaignReview() {
   document
     .querySelectorAll("[data-review-campaign]")
     .forEach(button => {
-
       button.onclick = () => {
         showCampaignReview(
           button.dataset.reviewCampaign
         );
       };
-
     });
 }
 
-function showCampaignReview(id) {
-  const campaign = CampaignModel.getById(id);
-
+async function showCampaignReview(id) {
   const pageContent =
     document.querySelector("#pageContent");
 
-  pageContent.innerHTML =
-    campaignReviewView(campaign);
+  try {
+    const response =
+      await getCampaign(id);
 
-  setActiveNavigation("campaigns");
-  attachNavigation();
+    pageContent.innerHTML =
+      campaignReviewView(response.campaign);
 
-  window.scrollTo(0, 0);
+    setActiveNavigation("campaigns");
+    attachNavigation();
+
+    window.scrollTo(0, 0);
+
+  } catch (error) {
+    alert(error.message);
+  }
 }
 
 function setActiveNavigation(page) {
@@ -245,11 +267,9 @@ function setActiveNavigation(page) {
   document
     .querySelectorAll(".nav-btn")
     .forEach(button => {
-
       button.classList.toggle(
         "active",
         button.dataset.page === activePage
       );
-
     });
 }

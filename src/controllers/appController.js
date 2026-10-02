@@ -1,6 +1,6 @@
-import { AuthModel } from "../models/authModel.js";
-
 import {
+  getCurrentUser,
+  logoutUser,
   previewCampaign,
   createCampaign,
   getCampaigns,
@@ -9,9 +9,6 @@ import {
 } from "../services/api.js";
 
 import {
-  loginView,
-  signupView,
-  landingView,
   appView,
   dashboardView,
   campaignsView,
@@ -27,127 +24,40 @@ import {
 
 const app = document.querySelector("#app");
 
-export function startApp() {
-  window.addEventListener("popstate", router);
+let currentUser = null;
 
-  router();
-}
+export async function startApp() {
+  try {
+    const response = await getCurrentUser();
 
-function navigate(path) {
-  history.pushState({}, "", path);
-  router();
-}
+    currentUser = response.user;
 
-function attachRouteButtons() {
-  document
-    .querySelectorAll("[data-route]")
-    .forEach(button => {
-
-      button.onclick = () => {
-        navigate(button.dataset.route);
-      };
-
-    });
-}
-
-function router() {
-  const path = window.location.pathname;
-
-  if (path === "/login") {
-    showLogin();
-    return;
+    showApp(currentUser);
+  } catch {
+    window.history.pushState({}, "", "/login");
+    window.dispatchEvent(new PopStateEvent("popstate"));
   }
-
-  if (path === "/signup") {
-    showSignup();
-    return;
-  }
-
-  if (path === "/app") {
-    const user = AuthModel.getUser();
-
-    if (!user) {
-      navigate("/login");
-      return;
-    }
-
-    showApp(user);
-    return;
-  }
-
-  showLanding();
-}
-
-function showLanding() {
-  app.innerHTML = landingView();
-
-  attachRouteButtons();
-  window.scrollTo(0, 0);
-}
-
-function showLogin() {
-  app.innerHTML = loginView();
-
-  attachRouteButtons();
-
-  document
-    .querySelector("#loginForm")
-    .addEventListener("submit", event => {
-
-      event.preventDefault();
-
-      const email =
-        document.querySelector("#email").value;
-
-      const password =
-        document.querySelector("#password").value;
-
-      const result =
-        AuthModel.login(email, password);
-
-      if (result.success) {
-        navigate("/app");
-      }
-    });
-}
-
-function showSignup() {
-  app.innerHTML = signupView();
-
-  attachRouteButtons();
-
-  document
-    .querySelector("#signupForm")
-    .addEventListener("submit", event => {
-
-      event.preventDefault();
-
-      const email =
-        document.querySelector("#signupEmail").value;
-
-      const password =
-        document.querySelector("#signupPassword").value;
-
-      const result =
-        AuthModel.login(email, password);
-
-      if (result.success) {
-        navigate("/app");
-      }
-    });
 }
 
 function showApp(user) {
-  app.innerHTML = appView(user);
+  app.innerHTML = appView(user.email);
 
-  document
-    .querySelector("#logoutBtn")
-    .addEventListener("click", () => {
+  const logoutButton =
+    document.querySelector("#logoutBtn");
 
-      AuthModel.logout();
+  logoutButton.addEventListener("click", async () => {
+    try {
+      await logoutUser();
+    } catch {}
 
-      navigate("/");
-    });
+    currentUser = null;
+
+    window.history.pushState({}, "", "/");
+
+    window.dispatchEvent(
+      new PopStateEvent("popstate")
+    );
+  });
 
   showPage("dashboard");
 }
@@ -157,7 +67,6 @@ async function showPage(page) {
     document.querySelector("#pageContent");
 
   try {
-
     if (page === "dashboard") {
       const response = await getCampaigns();
 
@@ -204,7 +113,9 @@ async function showPage(page) {
 
     if (page === "settings") {
       pageContent.innerHTML =
-        settingsView(AuthModel.getUser());
+        settingsView(
+          currentUser?.email || ""
+        );
     }
 
     setActiveNavigation(page);
@@ -217,7 +128,6 @@ async function showPage(page) {
     window.scrollTo(0, 0);
 
   } catch (error) {
-
     pageContent.innerHTML = `
       <section class="page">
 
@@ -254,64 +164,69 @@ function attachCampaignForm() {
 
   if (!form) return;
 
-  form.addEventListener("submit", async event => {
+  form.addEventListener(
+    "submit",
+    async event => {
 
-    event.preventDefault();
+      event.preventDefault();
 
-    const submitButton =
-      form.querySelector('button[type="submit"]');
+      const submitButton =
+        form.querySelector(
+          'button[type="submit"]'
+        );
 
-    submitButton.disabled = true;
-    submitButton.textContent =
-      "Saving campaign...";
+      submitButton.disabled = true;
 
-    const formData =
-      new FormData(form);
-
-    const payload = {
-      name: formData.get("name"),
-      product: formData.get("product"),
-      audience: formData.get("audience"),
-      country: formData.get("country"),
-      platform: formData.get("platform"),
-      budget: formData.get("budget"),
-      goal: formData.get("goal")
-    };
-
-    try {
-
-      await previewCampaign(payload);
-
-      const response =
-        await createCampaign(payload);
-
-      await showCampaignReview(
-        response.campaign.id
-      );
-
-    } catch (error) {
-
-      alert(
-        "Campaign could not be saved.\n\n" +
-        error.message
-      );
-
-      submitButton.disabled = false;
       submitButton.textContent =
-        "Save Campaign";
+        "Saving campaign...";
+
+      const formData =
+        new FormData(form);
+
+      const payload = {
+        name: formData.get("name"),
+        product: formData.get("product"),
+        audience: formData.get("audience"),
+        country: formData.get("country"),
+        platform: formData.get("platform"),
+        budget: formData.get("budget"),
+        goal: formData.get("goal")
+      };
+
+      try {
+        await previewCampaign(payload);
+
+        const response =
+          await createCampaign(payload);
+
+        await showCampaignReview(
+          response.campaign.id
+        );
+
+      } catch (error) {
+        alert(
+          "Campaign could not be saved.\n\n" +
+          error.message
+        );
+
+        submitButton.disabled = false;
+
+        submitButton.textContent =
+          "Save Campaign";
+      }
     }
-  });
+  );
 }
 
 function attachCampaignDelete() {
   document
-    .querySelectorAll("[data-delete-campaign]")
+    .querySelectorAll(
+      "[data-delete-campaign]"
+    )
     .forEach(button => {
 
       button.onclick = async () => {
-
         try {
-
           await deleteCampaign(
             button.dataset.deleteCampaign
           );
@@ -319,7 +234,6 @@ function attachCampaignDelete() {
           await showPage("campaigns");
 
         } catch (error) {
-
           alert(error.message);
         }
       };
@@ -329,11 +243,12 @@ function attachCampaignDelete() {
 
 function attachCampaignReview() {
   document
-    .querySelectorAll("[data-review-campaign]")
+    .querySelectorAll(
+      "[data-review-campaign]"
+    )
     .forEach(button => {
 
       button.onclick = () => {
-
         showCampaignReview(
           button.dataset.reviewCampaign
         );
@@ -347,7 +262,6 @@ async function showCampaignReview(id) {
     document.querySelector("#pageContent");
 
   try {
-
     const response =
       await getCampaign(id);
 
@@ -357,12 +271,12 @@ async function showCampaignReview(id) {
       );
 
     setActiveNavigation("campaigns");
+
     attachNavigation();
 
     window.scrollTo(0, 0);
 
   } catch (error) {
-
     alert(error.message);
   }
 }

@@ -74,6 +74,7 @@ def init_db():
     db.execute("""
         CREATE TABLE IF NOT EXISTS campaigns (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
             name TEXT NOT NULL,
             product TEXT NOT NULL,
             audience TEXT NOT NULL,
@@ -85,6 +86,18 @@ def init_db():
             created_at TEXT NOT NULL
         )
     """)
+
+    columns = [
+        row["name"]
+        for row in db.execute(
+            "PRAGMA table_info(campaigns)"
+        ).fetchall()
+    ]
+
+    if "user_id" not in columns:
+        db.execute(
+            "ALTER TABLE campaigns ADD COLUMN user_id INTEGER"
+        )
 
     db.commit()
     db.close()
@@ -449,7 +462,8 @@ def logout(
 
 @app.post("/api/campaigns/preview")
 def campaign_preview(
-    campaign: CampaignData
+    campaign: CampaignData,
+    user=Depends(get_current_user)
 ):
     return {
         "success": True,
@@ -463,12 +477,14 @@ def campaign_preview(
 
 @app.post("/api/campaigns")
 def create_campaign(
-    campaign: CampaignData
+    campaign: CampaignData,
+    user=Depends(get_current_user)
 ):
     db = get_db()
 
     cursor = db.execute("""
         INSERT INTO campaigns (
+            user_id,
             name,
             product,
             audience,
@@ -479,8 +495,9 @@ def create_campaign(
             status,
             created_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
+        user["id"],
         campaign.name,
         campaign.product,
         campaign.audience,
@@ -496,10 +513,15 @@ def create_campaign(
 
     campaign_id = cursor.lastrowid
 
-    row = db.execute(
-        "SELECT * FROM campaigns WHERE id = ?",
-        (campaign_id,)
-    ).fetchone()
+    row = db.execute("""
+        SELECT *
+        FROM campaigns
+        WHERE id = ?
+        AND user_id = ?
+    """, (
+        campaign_id,
+        user["id"]
+    )).fetchone()
 
     db.close()
 
@@ -510,14 +532,19 @@ def create_campaign(
 
 
 @app.get("/api/campaigns")
-def get_campaigns():
+def get_campaigns(
+    user=Depends(get_current_user)
+):
     db = get_db()
 
     rows = db.execute("""
         SELECT *
         FROM campaigns
+        WHERE user_id = ?
         ORDER BY id DESC
-    """).fetchall()
+    """, (
+        user["id"],
+    )).fetchall()
 
     db.close()
 
@@ -531,13 +558,21 @@ def get_campaigns():
 
 
 @app.get("/api/campaigns/{campaign_id}")
-def get_campaign(campaign_id: int):
+def get_campaign(
+    campaign_id: int,
+    user=Depends(get_current_user)
+):
     db = get_db()
 
-    row = db.execute(
-        "SELECT * FROM campaigns WHERE id = ?",
-        (campaign_id,)
-    ).fetchone()
+    row = db.execute("""
+        SELECT *
+        FROM campaigns
+        WHERE id = ?
+        AND user_id = ?
+    """, (
+        campaign_id,
+        user["id"]
+    )).fetchone()
 
     db.close()
 
@@ -554,18 +589,24 @@ def get_campaign(campaign_id: int):
 
 
 @app.delete("/api/campaigns/{campaign_id}")
-def delete_campaign(campaign_id: int):
+def delete_campaign(
+    campaign_id: int,
+    user=Depends(get_current_user)
+):
     db = get_db()
 
-    cursor = db.execute(
-        "DELETE FROM campaigns WHERE id = ?",
-        (campaign_id,)
-    )
+    cursor = db.execute("""
+        DELETE FROM campaigns
+        WHERE id = ?
+        AND user_id = ?
+    """, (
+        campaign_id,
+        user["id"]
+    ))
 
     db.commit()
 
     deleted = cursor.rowcount
-
     db.close()
 
     if not deleted:

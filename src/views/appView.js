@@ -633,3 +633,271 @@ export function campaignReviewView(campaign) {
     </section>
   `;
 }
+
+export function landingView() {
+  return `
+    <div class="landing">
+
+      <header class="landing-nav">
+        <div class="landing-brand">
+          <div class="mini-logo">M</div>
+          <strong>MarketFlow</strong>
+        </div>
+
+        <div class="landing-nav-actions">
+          <button data-route="/login" class="nav-login">
+            Login
+          </button>
+
+          <button data-route="/signup" class="nav-start">
+            Start Free
+          </button>
+        </div>
+      </header>
+
+      <main>
+
+        <section class="landing-hero">
+
+          <div class="hero-badge">
+            ✦ AI-powered marketing workspace
+          </div>
+
+          <h1>
+            Run your marketing
+            <span>from one intelligent platform.</span>
+          </h1>
+
+          <p>
+            Create campaigns, manage customer conversations,
+            connect your advertising accounts and track performance
+            with AI helping at every step.
+          </p>
+
+          <div class="hero-actions">
+            <button data-route="/signup" class="landing-primary">
+              Start Free
+            </button>
+
+            <button data-route="/login" class="landing-secondary">
+              Login to MarketFlow
+            </button>
+          </div>
+
+          <div class="hero-proof">
+            <span>✓ Campaign management</span>
+            <span>✓ AI marketing assistant</span>
+            <span>✓ Unified messages</span>
+          </div>
+
+        </section>
+
+        <section class="landing-dashboard-preview">
+
+          <div class="preview-top">
+            <span>MarketFlow Dashboard</span>
+            <span class="preview-status">● AI Ready</span>
+          </div>
+
+          <div class="preview-stats">
+            <article>
+              <strong>24</strong>
+              <span>Campaigns</span>
+            </article>
+
+            <article>
+              <strong>318</strong>
+              <span>Leads</span>
+            </article>
+
+            <article>
+              <strong>1.4K</strong>
+              <span>Messages</span>
+            </article>
+          </div>
+
+          <div class="preview-card">
+            <span>Campaign performance</span>
+            <strong>+32.4%</strong>
+          </div>
+
+        </section>
+
+        <section class="landing-section">
+          <div class="section-heading">
+            <span>ONE WORKSPACE</span>
+            <h2>Everything your marketing needs.</h2>
+            <p>
+              Stop jumping between tools. MarketFlow puts the main
+              parts of your marketing workflow in one place.
+            </p>
+          </div>
+
+          <div class="feature-grid">
+
+            <article class="feature-card">
+              <div>📢</div>
+              <h3>Campaigns</h3>
+              <p>
+                Build, review and launch campaigns from one workflow.
+              </p>
+            </article>
+
+            <article class="feature-card">
+              <div>✦</div>
+              <h3>AI Agent</h3>
+              <p>
+                Generate ideas, ad copy, targeting suggestions
+                and marketing plans.
+              </p>
+            </article>
+
+            <article class="feature-card">
+              <div>💬</div>
+              <h3>Messages</h3>
+              <p>
+                Bring customer conversations together and respond faster.
+              </p>
+            </article>
+
+            <article class="feature-card">
+              <div>📊</div>
+              <h3>Reports</h3>
+              <p>
+                Understand spend, leads, campaigns and performance.
+              </p>
+            </article>
+
+          </div>
+        </section>
+
+        <section class="landing-section integrations-section">
+
+          <div class="section-heading">
+            <span>CONNECTIONS</span>
+            <h2>Connect the platforms you already use.</h2>
+          </div>
+
+          <div class="integration-grid">
+            <div>Facebook</div>
+            <div>Instagram</div>
+            <div>Google Ads</div>
+            <div>TikTok</div>
+          </div>
+
+        </section>
+
+        <section class="how-section">
+
+          <div class="section-heading">
+            <span>HOW IT WORKS</span>
+            <h2>From idea to campaign in four steps.</h2>
+          </div>
+
+          <div class="steps-grid">
+
+            <article>
+              <strong>01</strong>
+              <h3>Create</h3>
+              <p>Tell MarketFlow what you want to promote.</p>
+            </article>
+
+            <article>
+              <strong>02</strong>
+              <h3>Improve</h3>
+              <p>Use AI recommendations to improve the campaign.</p>
+            </article>
+
+            <article>
+              <strong>03</strong>
+              <h3>Review</h3>
+              <p>Check audience, budget and campaign details.</p>
+            </article>
+
+            <article>
+              <strong>04</strong>
+              <h3>Launch</h3>
+              <p>Connect your advertising account and publish.</p>
+            </article>
+
+          </div>
+        </section>
+
+        <section class="landing-cta">
+          <span>MARKETING, SIMPLIFIED.</span>
+          <h2>Ready to build your next campaign?</h2>
+
+          <button data-route="/signup" class="landing-primary">
+            Start with MarketFlow
+          </button>
+        </section>
+
+      </main>
+
+      <footer class="landing-footer">
+        <strong>MarketFlow</strong>
+        <span>AI-powered marketing platform</span>
+      </footer>
+
+    </div>
+  `;
+}
+
+
+export function signupView() {
+  return `
+    <main class="login-page">
+
+      <section class="login-card">
+
+        <button data-route="/" class="auth-back">
+          ← Home
+        </button>
+
+        <div class="logo">M</div>
+
+        <h1>Create account</h1>
+
+        <p>Start using MarketFlow.</p>
+
+        <form id="signupForm">
+
+          <input
+            id="signupName"
+            placeholder="Full name"
+            required
+          >
+
+          <input
+            id="signupEmail"
+            type="email"
+            placeholder="Email address"
+            required
+          >
+
+          <input
+            id="signupPassword"
+            type="password"
+            placeholder="Password"
+            minlength="6"
+            required
+          >
+
+          <button type="submit">
+            Create account
+          </button>
+
+        </form>
+
+        <p class="auth-switch">
+          Already have an account?
+          <button data-route="/login">
+            Login
+          </button>
+        </p>
+
+      </section>
+
+    </main>
+  `;
+}

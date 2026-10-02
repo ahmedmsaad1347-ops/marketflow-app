@@ -10,6 +10,8 @@ import {
 
 import {
   loginView,
+  signupView,
+  landingView,
   appView,
   dashboardView,
   campaignsView,
@@ -26,21 +28,72 @@ import {
 const app = document.querySelector("#app");
 
 export function startApp() {
-  const user = AuthModel.getUser();
+  window.addEventListener("popstate", router);
 
-  if (user) {
-    showApp(user);
-  } else {
+  router();
+}
+
+function navigate(path) {
+  history.pushState({}, "", path);
+  router();
+}
+
+function attachRouteButtons() {
+  document
+    .querySelectorAll("[data-route]")
+    .forEach(button => {
+
+      button.onclick = () => {
+        navigate(button.dataset.route);
+      };
+
+    });
+}
+
+function router() {
+  const path = window.location.pathname;
+
+  if (path === "/login") {
     showLogin();
+    return;
   }
+
+  if (path === "/signup") {
+    showSignup();
+    return;
+  }
+
+  if (path === "/app") {
+    const user = AuthModel.getUser();
+
+    if (!user) {
+      navigate("/login");
+      return;
+    }
+
+    showApp(user);
+    return;
+  }
+
+  showLanding();
+}
+
+function showLanding() {
+  app.innerHTML = landingView();
+
+  attachRouteButtons();
+  window.scrollTo(0, 0);
 }
 
 function showLogin() {
   app.innerHTML = loginView();
 
+  attachRouteButtons();
+
   document
     .querySelector("#loginForm")
     .addEventListener("submit", event => {
+
       event.preventDefault();
 
       const email =
@@ -53,7 +106,33 @@ function showLogin() {
         AuthModel.login(email, password);
 
       if (result.success) {
-        showApp(result.user);
+        navigate("/app");
+      }
+    });
+}
+
+function showSignup() {
+  app.innerHTML = signupView();
+
+  attachRouteButtons();
+
+  document
+    .querySelector("#signupForm")
+    .addEventListener("submit", event => {
+
+      event.preventDefault();
+
+      const email =
+        document.querySelector("#signupEmail").value;
+
+      const password =
+        document.querySelector("#signupPassword").value;
+
+      const result =
+        AuthModel.login(email, password);
+
+      if (result.success) {
+        navigate("/app");
       }
     });
 }
@@ -64,8 +143,10 @@ function showApp(user) {
   document
     .querySelector("#logoutBtn")
     .addEventListener("click", () => {
+
       AuthModel.logout();
-      showLogin();
+
+      navigate("/");
     });
 
   showPage("dashboard");
@@ -76,6 +157,7 @@ async function showPage(page) {
     document.querySelector("#pageContent");
 
   try {
+
     if (page === "dashboard") {
       const response = await getCampaigns();
 
@@ -135,13 +217,20 @@ async function showPage(page) {
     window.scrollTo(0, 0);
 
   } catch (error) {
+
     pageContent.innerHTML = `
       <section class="page">
+
         <div class="empty-card">
           <h2>Connection error</h2>
+
           <p>${error.message}</p>
-          <p>Make sure the Python backend is running.</p>
+
+          <p>
+            Make sure the Python backend is running.
+          </p>
         </div>
+
       </section>
     `;
   }
@@ -151,9 +240,11 @@ function attachNavigation() {
   document
     .querySelectorAll("[data-page]")
     .forEach(button => {
+
       button.onclick = () => {
         showPage(button.dataset.page);
       };
+
     });
 }
 
@@ -164,15 +255,18 @@ function attachCampaignForm() {
   if (!form) return;
 
   form.addEventListener("submit", async event => {
+
     event.preventDefault();
 
     const submitButton =
       form.querySelector('button[type="submit"]');
 
     submitButton.disabled = true;
-    submitButton.textContent = "Saving campaign...";
+    submitButton.textContent =
+      "Saving campaign...";
 
-    const formData = new FormData(form);
+    const formData =
+      new FormData(form);
 
     const payload = {
       name: formData.get("name"),
@@ -185,6 +279,7 @@ function attachCampaignForm() {
     };
 
     try {
+
       await previewCampaign(payload);
 
       const response =
@@ -195,13 +290,15 @@ function attachCampaignForm() {
       );
 
     } catch (error) {
+
       alert(
         "Campaign could not be saved.\n\n" +
         error.message
       );
 
       submitButton.disabled = false;
-      submitButton.textContent = "Save Campaign";
+      submitButton.textContent =
+        "Save Campaign";
     }
   });
 }
@@ -210,8 +307,11 @@ function attachCampaignDelete() {
   document
     .querySelectorAll("[data-delete-campaign]")
     .forEach(button => {
+
       button.onclick = async () => {
+
         try {
+
           await deleteCampaign(
             button.dataset.deleteCampaign
           );
@@ -219,9 +319,11 @@ function attachCampaignDelete() {
           await showPage("campaigns");
 
         } catch (error) {
+
           alert(error.message);
         }
       };
+
     });
 }
 
@@ -229,11 +331,14 @@ function attachCampaignReview() {
   document
     .querySelectorAll("[data-review-campaign]")
     .forEach(button => {
+
       button.onclick = () => {
+
         showCampaignReview(
           button.dataset.reviewCampaign
         );
       };
+
     });
 }
 
@@ -242,11 +347,14 @@ async function showCampaignReview(id) {
     document.querySelector("#pageContent");
 
   try {
+
     const response =
       await getCampaign(id);
 
     pageContent.innerHTML =
-      campaignReviewView(response.campaign);
+      campaignReviewView(
+        response.campaign
+      );
 
     setActiveNavigation("campaigns");
     attachNavigation();
@@ -254,6 +362,7 @@ async function showCampaignReview(id) {
     window.scrollTo(0, 0);
 
   } catch (error) {
+
     alert(error.message);
   }
 }
@@ -267,9 +376,11 @@ function setActiveNavigation(page) {
   document
     .querySelectorAll(".nav-btn")
     .forEach(button => {
+
       button.classList.toggle(
         "active",
         button.dataset.page === activePage
       );
+
     });
 }

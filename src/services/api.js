@@ -61,8 +61,25 @@ export function createCampaign(campaign) {
   });
 }
 
-export function getCampaigns() {
-  return request("/api/campaigns");
+export function getCampaigns(
+  status = "All",
+  q = ""
+) {
+  const params = new URLSearchParams();
+
+  if (status && status !== "All") {
+    params.set("status", status);
+  }
+
+  if (q.trim()) {
+    params.set("q", q.trim());
+  }
+
+  const query = params.toString();
+
+  return request(
+    `/api/campaigns${query ? `?${query}` : ""}`
+  );
 }
 
 export function getCampaign(id) {
@@ -78,5 +95,47 @@ export function deleteCampaign(id) {
 export function getAnalytics(days = 30) {
   return request(
     `/api/analytics/overview?days=${days}`
+  );
+}
+
+
+export function updateCampaign(id, campaign) {
+  return request(`/api/campaigns/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(campaign)
+  });
+}
+
+export function duplicateCampaign(id) {
+  return request(
+    `/api/campaigns/${id}/duplicate`,
+    {
+      method: "POST"
+    }
+  );
+}
+
+export function updateCampaignStatus(
+  id,
+  status
+) {
+  return request(
+    `/api/campaigns/${id}/status`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({ status })
+    }
+  );
+}
+
+export function getCampaignHistory(id) {
+  return request(
+    `/api/campaigns/${id}/history`
+  );
+}
+
+export function getDashboardOverview() {
+  return request(
+    "/api/dashboard/overview"
   );
 }

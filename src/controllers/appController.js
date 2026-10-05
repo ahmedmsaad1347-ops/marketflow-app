@@ -1,11 +1,15 @@
 import {
   getCurrentUser,
   logoutUser,
+  getDashboardOverview,
   previewCampaign,
   createCampaign,
   getCampaigns,
   getCampaign,
   deleteCampaign,
+  updateCampaign,
+  duplicateCampaign,
+  updateCampaignStatus,
   getAnalytics
 } from "../services/api.js";
 
@@ -30,6 +34,11 @@ import {
 const app = document.querySelector("#app");
 
 let currentUser = null;
+
+let campaignFilters = {
+  status: "All",
+  q: ""
+};
 
 export async function startApp() {
   try {
@@ -73,17 +82,24 @@ async function showPage(page) {
 
   try {
     if (page === "dashboard") {
-      const response = await getCampaigns();
+      const response =
+        await getDashboardOverview();
 
       pageContent.innerHTML =
-        dashboardView(response.campaigns);
+        dashboardView(response);
     }
 
     if (page === "campaigns") {
-      const response = await getCampaigns();
+      const response = await getCampaigns(
+        campaignFilters.status,
+        campaignFilters.q
+      );
 
       pageContent.innerHTML =
-        campaignsView(response.campaigns);
+        campaignsView(
+          response.campaigns,
+          campaignFilters
+        );
     }
 
     if (page === "campaign-create") {
@@ -141,6 +157,8 @@ async function showPage(page) {
     attachCampaignForm();
     attachCampaignDelete();
     attachCampaignReview();
+    attachCampaignFilters();
+    attachCampaignActions();
 
     window.scrollTo(0, 0);
 
@@ -221,7 +239,9 @@ function attachNavigation() {
 
 function attachCampaignForm() {
   const form =
-    document.querySelector("#campaignForm");
+    document.querySelector(
+      "#campaignForm"
+    );
 
   if (!form) return;
 
@@ -231,6 +251,9 @@ function attachCampaignForm() {
 
       event.preventDefault();
 
+      const campaignId =
+        form.dataset.campaignId;
+
       const submitButton =
         form.querySelector(
           'button[type="submit"]'
@@ -239,45 +262,239 @@ function attachCampaignForm() {
       submitButton.disabled = true;
 
       submitButton.textContent =
-        "Saving campaign...";
+        campaignId
+          ? "Saving changes..."
+          : "Saving campaign...";
 
       const formData =
         new FormData(form);
 
       const payload = {
-        name: formData.get("name"),
-        product: formData.get("product"),
-        audience: formData.get("audience"),
-        country: formData.get("country"),
-        platform: formData.get("platform"),
-        budget: formData.get("budget"),
-        goal: formData.get("goal")
+        name:
+          formData.get("name"),
+        product:
+          formData.get("product"),
+        audience:
+          formData.get("audience"),
+        country:
+          formData.get("country"),
+        platform:
+          formData.get("platform"),
+        budget:
+          formData.get("budget"),
+        goal:
+          formData.get("goal")
       };
 
       try {
-        await previewCampaign(payload);
+        await previewCampaign(
+          payload
+        );
 
-        const response =
-          await createCampaign(payload);
+        let response;
+
+        if (campaignId) {
+          response =
+            await updateCampaign(
+              campaignId,
+              payload
+            );
+        } else {
+          response =
+            await createCampaign(
+              payload
+            );
+        }
 
         await showCampaignReview(
           response.campaign.id
         );
 
       } catch (error) {
+
         alert(
-          "Campaign could not be saved.\n\n" +
-          error.message
+          "Campaign could not be saved.\n\n"
+          + error.message
         );
 
         submitButton.disabled = false;
 
         submitButton.textContent =
-          "Save Campaign";
+          campaignId
+            ? "Save Changes"
+            : "Save Campaign";
       }
     }
   );
 }
+
+
+function attachCampaignFilters() {
+  const form =
+    document.querySelector(
+      "#campaignSearchForm"
+    );
+
+  if (form) {
+    form.onsubmit = event => {
+      event.preventDefault();
+
+      campaignFilters.q =
+        document
+          .querySelector(
+            "#campaignSearch"
+          )
+          .value
+          .trim();
+
+      showPage("campaigns");
+    };
+  }
+
+  const clearButton =
+    document.querySelector(
+      "[data-clear-campaign-search]"
+    );
+
+  if (clearButton) {
+    clearButton.onclick = () => {
+      campaignFilters.q = "";
+
+      showPage("campaigns");
+    };
+  }
+
+  document
+    .querySelectorAll(
+      "[data-campaign-filter]"
+    )
+    .forEach(button => {
+
+      button.onclick = () => {
+        campaignFilters.status =
+          button.dataset.campaignFilter;
+
+        showPage("campaigns");
+      };
+
+    });
+}
+
+
+function attachCampaignActions() {
+
+  document
+    .querySelectorAll(
+      "[data-edit-campaign]"
+    )
+    .forEach(button => {
+
+      button.onclick = () => {
+        showCampaignEdit(
+          button.dataset.editCampaign
+        );
+      };
+
+    });
+
+
+  document
+    .querySelectorAll(
+      "[data-duplicate-campaign]"
+    )
+    .forEach(button => {
+
+      button.onclick = async () => {
+
+        const oldText =
+          button.textContent;
+
+        button.disabled = true;
+        button.textContent =
+          "Duplicating...";
+
+        try {
+          await duplicateCampaign(
+            button.dataset
+              .duplicateCampaign
+          );
+
+          await showPage(
+            "campaigns"
+          );
+
+        } catch (error) {
+          button.disabled = false;
+          button.textContent =
+            oldText;
+
+          alert(error.message);
+        }
+      };
+
+    });
+
+
+  document
+    .querySelectorAll(
+      "[data-campaign-status]"
+    )
+    .forEach(button => {
+
+      button.onclick = async () => {
+
+        try {
+          await updateCampaignStatus(
+            button.dataset
+              .campaignStatus,
+            button.dataset.status
+          );
+
+          await showPage(
+            "campaigns"
+          );
+
+        } catch (error) {
+          alert(error.message);
+        }
+      };
+
+    });
+}
+
+
+async function showCampaignEdit(id) {
+  const pageContent =
+    document.querySelector(
+      "#pageContent"
+    );
+
+  try {
+    const response =
+      await getCampaign(id);
+
+    pageContent.innerHTML =
+      campaignFormView(
+        response.campaign
+      );
+
+    setActiveNavigation(
+      "campaign-edit"
+    );
+
+    attachNavigation();
+    attachCampaignForm();
+
+    window.scrollTo(
+      0,
+      0
+    );
+
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
 
 function attachCampaignDelete() {
   document
@@ -344,7 +561,10 @@ async function showCampaignReview(id) {
 
 function setActiveNavigation(page) {
   const activePage =
-    page === "campaign-create"
+    (
+      page === "campaign-create" ||
+      page === "campaign-edit"
+    )
       ? "campaigns"
       : page;
 

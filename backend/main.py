@@ -178,6 +178,27 @@ def init_db():
         )
     """)
 
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS campaign_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            campaign_id INTEGER NOT NULL,
+            event_type TEXT NOT NULL,
+            message TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        )
+    """)
+
+    db.execute("""
+        CREATE INDEX IF NOT EXISTS
+        idx_campaign_events
+        ON campaign_events(
+            user_id,
+            campaign_id,
+            created_at
+        )
+    """)
+
     columns = [
         row["name"]
         for row in db.execute(
@@ -189,6 +210,141 @@ def init_db():
         db.execute(
             "ALTER TABLE campaigns ADD COLUMN user_id INTEGER"
         )
+
+    if "updated_at" not in columns:
+        db.execute(
+            "ALTER TABLE campaigns ADD COLUMN updated_at TEXT"
+        )
+
+        db.execute("""
+            UPDATE campaigns
+            SET updated_at = created_at
+            WHERE updated_at IS NULL
+        """)
+
+    db.execute("""
+        CREATE TRIGGER IF NOT EXISTS
+        campaign_created_event
+        AFTER INSERT ON campaigns
+        BEGIN
+
+            UPDATE campaigns
+            SET updated_at = NEW.created_at
+            WHERE id = NEW.id;
+
+            INSERT INTO campaign_events (
+                user_id,
+                campaign_id,
+                event_type,
+                message,
+                created_at
+            )
+            VALUES (
+                NEW.user_id,
+                NEW.id,
+                'Created',
+                'Campaign created',
+                NEW.created_at
+            );
+
+        END
+    """)
+
+    db.execute("""
+        CREATE TRIGGER IF NOT EXISTS
+        campaign_edited_event
+        AFTER UPDATE OF
+            name,
+            product,
+            audience,
+            country,
+            platform,
+            budget,
+            goal
+        ON campaigns
+        BEGIN
+
+            UPDATE campaigns
+            SET updated_at =
+                strftime(
+                    '%Y-%m-%dT%H:%M:%fZ',
+                    'now'
+                )
+            WHERE id = NEW.id;
+
+            INSERT INTO campaign_events (
+                user_id,
+                campaign_id,
+                event_type,
+                message,
+                created_at
+            )
+            VALUES (
+                NEW.user_id,
+                NEW.id,
+                'Edited',
+                'Campaign details updated',
+                strftime(
+                    '%Y-%m-%dT%H:%M:%fZ',
+                    'now'
+                )
+            );
+
+        END
+    """)
+
+    db.execute("""
+        CREATE TRIGGER IF NOT EXISTS
+        campaign_status_event
+        AFTER UPDATE OF status
+        ON campaigns
+        WHEN OLD.status != NEW.status
+        BEGIN
+
+            UPDATE campaigns
+            SET updated_at =
+                strftime(
+                    '%Y-%m-%dT%H:%M:%fZ',
+                    'now'
+                )
+            WHERE id = NEW.id;
+
+            INSERT INTO campaign_events (
+                user_id,
+                campaign_id,
+                event_type,
+                message,
+                created_at
+            )
+            VALUES (
+                NEW.user_id,
+                NEW.id,
+                'Status changed',
+                'Status changed from '
+                    || OLD.status
+                    || ' to '
+                    || NEW.status,
+                strftime(
+                    '%Y-%m-%dT%H:%M:%fZ',
+                    'now'
+                )
+            );
+
+        END
+    """)
+
+    db.execute("""
+        CREATE TRIGGER IF NOT EXISTS
+        campaign_delete_history
+        BEFORE DELETE ON campaigns
+        BEGIN
+
+            DELETE FROM campaign_events
+            WHERE campaign_id = OLD.id
+            AND user_id = OLD.user_id;
+
+        END
+    """)
 
     db.commit()
     db.close()
@@ -364,6 +520,20 @@ class CampaignData(BaseModel):
     platform: str
     budget: str
     goal: str
+
+
+class CampaignUpdateData(BaseModel):
+    name: str
+    product: str
+    audience: str
+    country: str
+    platform: str
+    budget: str
+    goal: str
+
+
+class CampaignStatusData(BaseModel):
+    status: str
 
 
 class AIRequest(BaseModel):
@@ -624,18 +794,51 @@ def create_campaign(
 
 @app.get("/api/campaigns")
 def get_campaigns(
+    status: str = "",
+    q: str = "",
     user=Depends(get_current_user)
 ):
     db = get_db()
 
-    rows = db.execute("""
+    sql = """
         SELECT *
         FROM campaigns
         WHERE user_id = ?
-        ORDER BY id DESC
-    """, (
-        user["id"],
-    )).fetchall()
+    """
+
+    params = [user["id"]]
+
+    if status and status != "All":
+        sql += " AND status = ?"
+        params.append(status)
+
+    if q.strip():
+        search = f"%{q.strip()}%"
+
+        sql += """
+            AND (
+                name LIKE ?
+                OR product LIKE ?
+                OR country LIKE ?
+                OR platform LIKE ?
+                OR goal LIKE ?
+            )
+        """
+
+        params.extend([
+            search,
+            search,
+            search,
+            search,
+            search
+        ])
+
+    sql += " ORDER BY id DESC"
+
+    rows = db.execute(
+        sql,
+        tuple(params)
+    ).fetchall()
 
     db.close()
 
@@ -676,6 +879,265 @@ def get_campaign(
     return {
         "success": True,
         "campaign": dict(row)
+    }
+
+
+@app.put("/api/campaigns/{campaign_id}")
+def update_campaign(
+    campaign_id: int,
+    campaign: CampaignUpdateData,
+    user=Depends(get_current_user)
+):
+    db = get_db()
+
+    exists = db.execute("""
+        SELECT id
+        FROM campaigns
+        WHERE id = ?
+        AND user_id = ?
+    """, (
+        campaign_id,
+        user["id"]
+    )).fetchone()
+
+    if not exists:
+        db.close()
+
+        raise HTTPException(
+            status_code=404,
+            detail="Campaign not found"
+        )
+
+    db.execute("""
+        UPDATE campaigns
+        SET
+            name = ?,
+            product = ?,
+            audience = ?,
+            country = ?,
+            platform = ?,
+            budget = ?,
+            goal = ?
+        WHERE id = ?
+        AND user_id = ?
+    """, (
+        campaign.name,
+        campaign.product,
+        campaign.audience,
+        campaign.country,
+        campaign.platform,
+        campaign.budget,
+        campaign.goal,
+        campaign_id,
+        user["id"]
+    ))
+
+    db.commit()
+
+    row = db.execute("""
+        SELECT *
+        FROM campaigns
+        WHERE id = ?
+        AND user_id = ?
+    """, (
+        campaign_id,
+        user["id"]
+    )).fetchone()
+
+    db.close()
+
+    return {
+        "success": True,
+        "campaign": dict(row)
+    }
+
+
+@app.post("/api/campaigns/{campaign_id}/duplicate")
+def duplicate_campaign(
+    campaign_id: int,
+    user=Depends(get_current_user)
+):
+    db = get_db()
+
+    original = db.execute("""
+        SELECT *
+        FROM campaigns
+        WHERE id = ?
+        AND user_id = ?
+    """, (
+        campaign_id,
+        user["id"]
+    )).fetchone()
+
+    if not original:
+        db.close()
+
+        raise HTTPException(
+            status_code=404,
+            detail="Campaign not found"
+        )
+
+    cursor = db.execute("""
+        INSERT INTO campaigns (
+            user_id,
+            name,
+            product,
+            audience,
+            country,
+            platform,
+            budget,
+            goal,
+            status,
+            created_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        user["id"],
+        original["name"] + " Copy",
+        original["product"],
+        original["audience"],
+        original["country"],
+        original["platform"],
+        original["budget"],
+        original["goal"],
+        "Draft",
+        datetime.utcnow().isoformat()
+    ))
+
+    db.commit()
+
+    new_id = cursor.lastrowid
+
+    row = db.execute("""
+        SELECT *
+        FROM campaigns
+        WHERE id = ?
+        AND user_id = ?
+    """, (
+        new_id,
+        user["id"]
+    )).fetchone()
+
+    db.close()
+
+    return {
+        "success": True,
+        "campaign": dict(row)
+    }
+
+
+@app.patch("/api/campaigns/{campaign_id}/status")
+def update_campaign_status(
+    campaign_id: int,
+    data: CampaignStatusData,
+    user=Depends(get_current_user)
+):
+    allowed = [
+        "Draft",
+        "Ready",
+        "Archived"
+    ]
+
+    if data.status not in allowed:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Status must be Draft, "
+                "Ready or Archived"
+            )
+        )
+
+    db = get_db()
+
+    cursor = db.execute("""
+        UPDATE campaigns
+        SET status = ?
+        WHERE id = ?
+        AND user_id = ?
+    """, (
+        data.status,
+        campaign_id,
+        user["id"]
+    ))
+
+    db.commit()
+
+    if cursor.rowcount == 0:
+        db.close()
+
+        raise HTTPException(
+            status_code=404,
+            detail="Campaign not found"
+        )
+
+    row = db.execute("""
+        SELECT *
+        FROM campaigns
+        WHERE id = ?
+        AND user_id = ?
+    """, (
+        campaign_id,
+        user["id"]
+    )).fetchone()
+
+    db.close()
+
+    return {
+        "success": True,
+        "campaign": dict(row)
+    }
+
+
+@app.get("/api/campaigns/{campaign_id}/history")
+def get_campaign_history(
+    campaign_id: int,
+    user=Depends(get_current_user)
+):
+    db = get_db()
+
+    campaign = db.execute("""
+        SELECT *
+        FROM campaigns
+        WHERE id = ?
+        AND user_id = ?
+    """, (
+        campaign_id,
+        user["id"]
+    )).fetchone()
+
+    if not campaign:
+        db.close()
+
+        raise HTTPException(
+            status_code=404,
+            detail="Campaign not found"
+        )
+
+    rows = db.execute("""
+        SELECT
+            id,
+            event_type,
+            message,
+            created_at
+        FROM campaign_events
+        WHERE campaign_id = ?
+        AND user_id = ?
+        ORDER BY id DESC
+    """, (
+        campaign_id,
+        user["id"]
+    )).fetchall()
+
+    db.close()
+
+    return {
+        "success": True,
+        "campaign_id": campaign_id,
+        "updated_at": campaign["updated_at"],
+        "history": [
+            dict(row)
+            for row in rows
+        ]
     }
 
 
@@ -822,6 +1284,120 @@ def analytics_sum(
     )).fetchone()
 
     return build_analytics_metrics(row)
+
+
+@app.get("/api/dashboard/overview")
+def dashboard_overview(
+    user=Depends(get_current_user)
+):
+    db = get_db()
+
+    counts = db.execute("""
+        SELECT
+            COUNT(*) AS total,
+            COALESCE(
+                SUM(
+                    CASE
+                        WHEN status = 'Draft'
+                        THEN 1
+                        ELSE 0
+                    END
+                ),
+                0
+            ) AS draft,
+            COALESCE(
+                SUM(
+                    CASE
+                        WHEN status = 'Ready'
+                        THEN 1
+                        ELSE 0
+                    END
+                ),
+                0
+            ) AS ready,
+            COALESCE(
+                SUM(
+                    CASE
+                        WHEN status = 'Archived'
+                        THEN 1
+                        ELSE 0
+                    END
+                ),
+                0
+            ) AS archived
+        FROM campaigns
+        WHERE user_id = ?
+    """, (
+        user["id"],
+    )).fetchone()
+
+    recent_campaigns = db.execute("""
+        SELECT
+            id,
+            name,
+            product,
+            platform,
+            country,
+            budget,
+            goal,
+            status,
+            created_at,
+            updated_at
+        FROM campaigns
+        WHERE user_id = ?
+        ORDER BY
+            COALESCE(
+                updated_at,
+                created_at
+            ) DESC
+        LIMIT 5
+    """, (
+        user["id"],
+    )).fetchall()
+
+    recent_activity = db.execute("""
+        SELECT
+            campaign_events.id,
+            campaign_events.campaign_id,
+            campaign_events.event_type,
+            campaign_events.message,
+            campaign_events.created_at,
+            campaigns.name AS campaign_name
+        FROM campaign_events
+        JOIN campaigns
+        ON campaigns.id =
+            campaign_events.campaign_id
+        WHERE campaign_events.user_id = ?
+        AND campaigns.user_id = ?
+        ORDER BY campaign_events.id DESC
+        LIMIT 8
+    """, (
+        user["id"],
+        user["id"]
+    )).fetchall()
+
+    db.close()
+
+    return {
+        "success": True,
+
+        "campaigns": {
+            "total": counts["total"] or 0,
+            "draft": counts["draft"] or 0,
+            "ready": counts["ready"] or 0,
+            "archived": counts["archived"] or 0
+        },
+
+        "recent_campaigns": [
+            dict(row)
+            for row in recent_campaigns
+        ],
+
+        "recent_activity": [
+            dict(row)
+            for row in recent_activity
+        ]
+    }
 
 
 @app.get("/api/analytics/overview")

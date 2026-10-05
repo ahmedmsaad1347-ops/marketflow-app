@@ -68,7 +68,108 @@ export function appView(user) {
   `;
 }
 
-export function dashboardView(campaigns) {
+function campaignEscape(value = "") {
+  return String(value).replace(
+    /[&<>"']/g,
+    char => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#039;"
+    })[char]
+  );
+}
+
+
+export function dashboardView(data = {}) {
+  const stats =
+    data.campaigns || {};
+
+  const recent =
+    data.recent_campaigns || [];
+
+  const activity =
+    data.recent_activity || [];
+
+  const recentCards = recent.length
+    ? recent.map(campaign => `
+        <button
+          class="dashboard-campaign-card"
+          data-review-campaign="${campaign.id}"
+        >
+          <div>
+            <small>
+              ${campaignEscape(
+                campaign.platform
+              )}
+            </small>
+
+            <strong>
+              ${campaignEscape(
+                campaign.name
+              )}
+            </strong>
+
+            <span>
+              ${campaignEscape(
+                campaign.product
+              )}
+            </span>
+          </div>
+
+          <span
+            class="
+              campaign-status
+              status-${campaign.status.toLowerCase()}
+            "
+          >
+            ${campaignEscape(
+              campaign.status
+            )}
+          </span>
+        </button>
+      `).join("")
+    : `
+      <div class="empty-card">
+        No campaigns yet.
+      </div>
+    `;
+
+  const activityRows = activity.length
+    ? activity.map(item => `
+        <article class="dashboard-activity-row">
+          <div class="campaign-event-dot"></div>
+
+          <div>
+            <strong>
+              ${campaignEscape(
+                item.campaign_name
+              )}
+            </strong>
+
+            <p>
+              ${campaignEscape(
+                item.message
+              )}
+            </p>
+
+            <small>
+              ${
+                new Date(
+                  item.created_at
+                ).toLocaleString()
+              }
+            </small>
+          </div>
+        </article>
+      `).join("")
+    : `
+      <div class="campaign-history-empty">
+        No activity yet.
+      </div>
+    `;
+
   return `
     <section class="page">
 
@@ -81,25 +182,38 @@ export function dashboardView(campaigns) {
         </h1>
 
         <span>
-          Everything you need in one place.
+          Your MarketFlow workspace.
         </span>
       </div>
 
-      <div class="stats">
+      <div class="dashboard-campaign-stats">
 
         <article>
-          <strong>0</strong>
-          <span>Messages</span>
+          <small>Total</small>
+          <strong>
+            ${stats.total || 0}
+          </strong>
         </article>
 
         <article>
-          <strong>${campaigns.length}</strong>
-          <span>Campaigns</span>
+          <small>Draft</small>
+          <strong>
+            ${stats.draft || 0}
+          </strong>
         </article>
 
         <article>
-          <strong>0</strong>
-          <span>Leads</span>
+          <small>Ready</small>
+          <strong>
+            ${stats.ready || 0}
+          </strong>
+        </article>
+
+        <article>
+          <small>Archived</small>
+          <strong>
+            ${stats.archived || 0}
+          </strong>
         </article>
 
       </div>
@@ -115,19 +229,14 @@ export function dashboardView(campaigns) {
           New Campaign
         </button>
 
-        <button data-page="ai">
-          <span>✦</span>
-          Ask AI
-        </button>
-
-        <button data-page="messages">
-          <span>💬</span>
-          Messages
+        <button data-page="campaigns">
+          <span>🗂️</span>
+          Campaigns
         </button>
 
         <button data-page="reports">
           <span>📊</span>
-          Reports
+          Analytics
         </button>
 
         <button data-page="connections">
@@ -135,76 +244,215 @@ export function dashboardView(campaigns) {
           Connections
         </button>
 
-        <button data-page="notifications">
-          <span>🔔</span>
-          Notifications
-        </button>
+      </div>
 
-        <button data-page="settings">
-          <span>⚙️</span>
-          Settings
-        </button>
+      <div class="dashboard-section-head">
+        <div>
+          <p class="review-kicker">
+            RECENT
+          </p>
 
+          <h2>Recent Campaigns</h2>
+        </div>
+
+        <button
+          data-page="campaigns"
+          class="dashboard-view-all"
+        >
+          View all
+        </button>
+      </div>
+
+      <div class="dashboard-recent-list">
+        ${recentCards}
+      </div>
+
+      <div class="dashboard-section-head">
+        <div>
+          <p class="review-kicker">
+            ACTIVITY
+          </p>
+
+          <h2>Recent Activity</h2>
+        </div>
+      </div>
+
+      <div class="dashboard-activity-card">
+        ${activityRows}
       </div>
 
     </section>
   `;
 }
 
-export function campaignsView(campaigns) {
-  const list = campaigns.length
-    ? campaigns.map(campaign => `
-        <article class="campaign-card">
 
-          <div class="campaign-card-top">
-            <div>
-              <small>${campaign.platform}</small>
-              <h3>${campaign.name}</h3>
+export function campaignsView(
+  campaigns,
+  filters = {}
+) {
+  const state = {
+    q: filters.q || "",
+    status: filters.status || "All"
+  };
+
+  const statuses = [
+    "All",
+    "Draft",
+    "Ready",
+    "Archived"
+  ];
+
+  const filterButtons = statuses
+    .map(status => `
+      <button
+        type="button"
+        data-campaign-filter="${status}"
+        class="campaign-filter ${
+          state.status === status
+            ? "active"
+            : ""
+        }"
+      >
+        ${status}
+      </button>
+    `)
+    .join("");
+
+  const list = campaigns.length
+    ? campaigns.map(campaign => {
+
+        const archived =
+          campaign.status === "Archived";
+
+        const ready =
+          campaign.status === "Ready";
+
+        return `
+          <article class="campaign-card">
+
+            <div class="campaign-card-top">
+              <div>
+                <small>
+                  ${campaignEscape(
+                    campaign.platform
+                  )}
+                </small>
+
+                <h3>
+                  ${campaignEscape(
+                    campaign.name
+                  )}
+                </h3>
+              </div>
+
+              <span
+                class="campaign-status status-${campaign.status.toLowerCase()}"
+              >
+                ${campaignEscape(
+                  campaign.status
+                )}
+              </span>
             </div>
 
-            <span class="campaign-status">
-              ${campaign.status}
-            </span>
-          </div>
+            <p>
+              ${campaignEscape(
+                campaign.product
+              )}
+            </p>
 
-          <p>
-            ${campaign.product}
-          </p>
+            <div class="campaign-meta">
+              <span>
+                🌍 ${campaignEscape(
+                  campaign.country
+                )}
+              </span>
 
-          <div class="campaign-meta">
-            <span>🌍 ${campaign.country}</span>
-            <span>💰 ${campaign.budget}</span>
-          </div>
+              <span>
+                💰 ${campaignEscape(
+                  campaign.budget
+                )}
+              </span>
+            </div>
 
-          <div class="campaign-actions">
+            <div class="campaign-management">
 
-            <button
-              class="review-campaign"
-              data-review-campaign="${campaign.id}"
-            >
-              Review & Launch
-            </button>
+              <button
+                data-review-campaign="${campaign.id}"
+                class="campaign-main-action"
+              >
+                Review
+              </button>
 
-            <button
-              class="delete-campaign"
-              data-delete-campaign="${campaign.id}"
-            >
-              Delete
-            </button>
+              <button
+                data-edit-campaign="${campaign.id}"
+              >
+                ✏️ Edit
+              </button>
 
-          </div>
+              <button
+                data-duplicate-campaign="${campaign.id}"
+              >
+                ⧉ Duplicate
+              </button>
 
-        </article>
-      `).join("")
+              ${
+                !ready && !archived
+                  ? `
+                    <button
+                      data-campaign-status="${campaign.id}"
+                      data-status="Ready"
+                    >
+                      ✓ Ready
+                    </button>
+                  `
+                  : ""
+              }
+
+              ${
+                archived
+                  ? `
+                    <button
+                      data-campaign-status="${campaign.id}"
+                      data-status="Draft"
+                    >
+                      ↩ Restore
+                    </button>
+                  `
+                  : `
+                    <button
+                      data-campaign-status="${campaign.id}"
+                      data-status="Archived"
+                    >
+                      Archive
+                    </button>
+                  `
+              }
+
+              <button
+                data-delete-campaign="${campaign.id}"
+                class="campaign-danger-action"
+              >
+                Delete
+              </button>
+
+            </div>
+
+          </article>
+        `;
+      }).join("")
     : `
       <div class="empty-card">
         <div class="big-icon">📢</div>
 
-        <h2>No campaigns yet</h2>
+        <h2>No campaigns found</h2>
 
         <p>
-          Your active and scheduled campaigns
-          will appear here.
+          ${
+            state.q ||
+            state.status !== "All"
+              ? "Try another search or filter."
+              : "Create your first campaign to get started."
+          }
         </p>
       </div>
     `;
@@ -212,18 +460,63 @@ export function campaignsView(campaigns) {
   return `
     <section class="page">
 
-      <h1>Campaigns</h1>
+      <div class="campaign-page-head">
+        <div>
+          <h1>Campaigns</h1>
 
-      <p class="subtitle">
-        Create and manage your marketing campaigns.
-      </p>
+          <p class="subtitle">
+            Create, organize and manage
+            your marketing campaigns.
+          </p>
+        </div>
 
-      <button
-        data-page="campaign-create"
-        class="primary-action"
-      >
-        + Create Campaign
-      </button>
+        <button
+          data-page="campaign-create"
+          class="primary-action"
+        >
+          + New Campaign
+        </button>
+      </div>
+
+      <div class="campaign-toolbar">
+
+        <form
+          id="campaignSearchForm"
+          class="campaign-search"
+        >
+          <input
+            id="campaignSearch"
+            type="search"
+            placeholder="Search campaigns..."
+            value="${campaignEscape(
+              state.q
+            )}"
+          >
+
+          <button type="submit">
+            Search
+          </button>
+
+          ${
+            state.q
+              ? `
+                <button
+                  type="button"
+                  data-clear-campaign-search
+                  class="campaign-clear"
+                >
+                  Clear
+                </button>
+              `
+              : ""
+          }
+        </form>
+
+        <div class="campaign-filters">
+          ${filterButtons}
+        </div>
+
+      </div>
 
       <div class="campaign-list">
         ${list}
@@ -233,7 +526,20 @@ export function campaignsView(campaigns) {
   `;
 }
 
-export function campaignFormView() {
+
+export function campaignFormView(
+  campaign = null
+) {
+  const item = campaign || {};
+
+  const editing = Boolean(item.id);
+
+  const selected = value =>
+    item.platform === value ||
+    item.goal === value
+      ? "selected"
+      : "";
+
   return `
     <section class="page">
 
@@ -244,18 +550,48 @@ export function campaignFormView() {
         ← Back
       </button>
 
-      <h1>Create Campaign</h1>
-
-      <p class="subtitle">
-        Tell MarketFlow what you want to promote.
+      <p class="review-kicker">
+        ${
+          editing
+            ? "EDIT CAMPAIGN"
+            : "NEW CAMPAIGN"
+        }
       </p>
 
-      <form id="campaignForm" class="campaign-form">
+      <h1>
+        ${
+          editing
+            ? "Edit Campaign"
+            : "Create Campaign"
+        }
+      </h1>
+
+      <p class="subtitle">
+        ${
+          editing
+            ? "Update the campaign details below."
+            : "Tell MarketFlow what you want to promote."
+        }
+      </p>
+
+      <form
+        id="campaignForm"
+        class="campaign-form"
+        data-campaign-id="${
+          editing
+            ? item.id
+            : ""
+        }"
+      >
 
         <label>
           Campaign name
+
           <input
             name="name"
+            value="${campaignEscape(
+              item.name || ""
+            )}"
             placeholder="Summer Campaign"
             required
           >
@@ -263,8 +599,12 @@ export function campaignFormView() {
 
         <label>
           Product or service
+
           <input
             name="product"
+            value="${campaignEscape(
+              item.product || ""
+            )}"
             placeholder="Men's clothing store"
             required
           >
@@ -272,8 +612,12 @@ export function campaignFormView() {
 
         <label>
           Target audience
+
           <input
             name="audience"
+            value="${campaignEscape(
+              item.audience || ""
+            )}"
             placeholder="Men aged 18-35"
             required
           >
@@ -281,8 +625,12 @@ export function campaignFormView() {
 
         <label>
           Target country
+
           <input
             name="country"
+            value="${campaignEscape(
+              item.country || ""
+            )}"
             placeholder="Egypt"
             required
           >
@@ -291,13 +639,45 @@ export function campaignFormView() {
         <label>
           Platform
 
-          <select name="platform" required>
-            <option value="">Choose platform</option>
-            <option>Facebook</option>
-            <option>Instagram</option>
-            <option>TikTok</option>
-            <option>Google</option>
-            <option>Multiple platforms</option>
+          <select
+            name="platform"
+            required
+          >
+            <option value="">
+              Choose platform
+            </option>
+
+            <option
+              ${selected("Facebook")}
+            >
+              Facebook
+            </option>
+
+            <option
+              ${selected("Instagram")}
+            >
+              Instagram
+            </option>
+
+            <option
+              ${selected("TikTok")}
+            >
+              TikTok
+            </option>
+
+            <option
+              ${selected("Google")}
+            >
+              Google
+            </option>
+
+            <option
+              ${selected(
+                "Multiple platforms"
+              )}
+            >
+              Multiple platforms
+            </option>
           </select>
         </label>
 
@@ -306,6 +686,9 @@ export function campaignFormView() {
 
           <input
             name="budget"
+            value="${campaignEscape(
+              item.budget || ""
+            )}"
             placeholder="100 USD"
             required
           >
@@ -314,13 +697,41 @@ export function campaignFormView() {
         <label>
           Campaign goal
 
-          <select name="goal" required>
-            <option value="">Choose goal</option>
-            <option>Sales</option>
-            <option>Leads</option>
-            <option>Messages</option>
-            <option>Website traffic</option>
-            <option>Brand awareness</option>
+          <select
+            name="goal"
+            required
+          >
+            <option value="">
+              Choose goal
+            </option>
+
+            <option ${selected("Sales")}>
+              Sales
+            </option>
+
+            <option ${selected("Leads")}>
+              Leads
+            </option>
+
+            <option ${selected("Messages")}>
+              Messages
+            </option>
+
+            <option
+              ${selected(
+                "Website traffic"
+              )}
+            >
+              Website traffic
+            </option>
+
+            <option
+              ${selected(
+                "Brand awareness"
+              )}
+            >
+              Brand awareness
+            </option>
           </select>
         </label>
 
@@ -328,7 +739,11 @@ export function campaignFormView() {
           type="submit"
           class="primary-action"
         >
-          Save Campaign
+          ${
+            editing
+              ? "Save Changes"
+              : "Save Campaign"
+          }
         </button>
 
       </form>
@@ -336,6 +751,7 @@ export function campaignFormView() {
     </section>
   `;
 }
+
 
 export function messagesView() {
   return `

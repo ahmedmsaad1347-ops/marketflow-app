@@ -28,9 +28,33 @@ export function appView(user) {
           <small>${user}</small>
         </div>
 
-        <button id="logoutBtn" class="logout">
-          Logout
-        </button>
+        <div class="topbar-actions">
+
+          <button
+            id="notificationBtn"
+            data-page="notifications"
+            class="notification-button"
+            aria-label="Notifications"
+          >
+            🔔
+
+            <span
+              id="notificationBadge"
+              class="notification-badge"
+              hidden
+            >
+              0
+            </span>
+          </button>
+
+          <button
+            id="logoutBtn"
+            class="logout"
+          >
+            Logout
+          </button>
+
+        </div>
       </header>
 
       <main id="pageContent"></main>
@@ -1174,67 +1198,364 @@ export function connectionsView() {
   `;
 }
 
-export function notificationsView() {
-  return `
-    <section class="page">
-      <h1>Notifications</h1>
-      <p class="subtitle">
-        Important updates from your campaigns and accounts.
-      </p>
+export function notificationsView(
+  data = {}
+) {
+  const notifications =
+    data.notifications || [];
 
-      <div class="empty-card">
-        <div class="big-icon">🔔</div>
-        <h2>No notifications yet</h2>
-        <p>
-          Campaign alerts, budget warnings and new lead notifications
-          will appear here.
-        </p>
+  const unread =
+    data.unread_count || 0;
+
+  const formatDate = value => {
+    if (!value) return "";
+
+    let normalized = value;
+
+    if (
+      !value.endsWith("Z") &&
+      !/[+-]\d\d:\d\d$/.test(value)
+    ) {
+      normalized = value + "Z";
+    }
+
+    const date =
+      new Date(normalized);
+
+    if (
+      Number.isNaN(
+        date.getTime()
+      )
+    ) {
+      return value;
+    }
+
+    return date.toLocaleString();
+  };
+
+  const iconFor = type => {
+    if (type === "Created") {
+      return "✨";
+    }
+
+    if (type === "Edited") {
+      return "✏️";
+    }
+
+    if (type === "Status changed") {
+      return "🔄";
+    }
+
+    return "🔔";
+  };
+
+  const list =
+    notifications.length
+      ? notifications.map(item => `
+          <button
+            class="
+              notification-item
+              ${
+                item.is_read
+                  ? ""
+                  : "unread"
+              }
+            "
+            data-notification-id="${item.id}"
+            data-campaign-id="${
+              item.campaign_id || ""
+            }"
+          >
+
+            <span
+              class="notification-icon"
+            >
+              ${iconFor(
+                item.event_type
+              )}
+            </span>
+
+            <span
+              class="notification-content"
+            >
+
+              <span
+                class="notification-title"
+              >
+                ${campaignEscape(
+                  item.campaign_name
+                )}
+              </span>
+
+              <span
+                class="notification-message"
+              >
+                ${campaignEscape(
+                  item.message
+                )}
+              </span>
+
+              <small>
+                ${formatDate(
+                  item.created_at
+                )}
+              </small>
+
+            </span>
+
+            ${
+              item.is_read
+                ? ""
+                : `
+                  <span
+                    class="notification-unread-dot"
+                  ></span>
+                `
+            }
+
+          </button>
+        `).join("")
+      : `
+        <div class="empty-card">
+          <div class="big-icon">
+            🔔
+          </div>
+
+          <h2>No notifications yet</h2>
+
+          <p>
+            Campaign activity will
+            appear here automatically.
+          </p>
+        </div>
+      `;
+
+  return `
+    <section
+      class="page notifications-page"
+    >
+
+      <div
+        class="notifications-header"
+      >
+
+        <div>
+          <p class="review-kicker">
+            ACTIVITY CENTER
+          </p>
+
+          <h1>Notifications</h1>
+
+          <p class="subtitle">
+            ${
+              unread
+                ? `${unread} unread notifications`
+                : "You're all caught up."
+            }
+          </p>
+        </div>
+
+        ${
+          unread
+            ? `
+              <button
+                id="markAllNotifications"
+                class="mark-all-notifications"
+              >
+                Mark all read
+              </button>
+            `
+            : ""
+        }
+
       </div>
+
+      <div
+        class="notifications-list"
+      >
+        ${list}
+      </div>
+
     </section>
   `;
 }
 
-export function settingsView(user) {
+
+export function settingsView(
+  user = {}
+) {
   return `
-    <section class="page">
+    <section class="page settings-page">
+
+      <p class="review-kicker">
+        ACCOUNT
+      </p>
+
       <h1>Settings</h1>
+
       <p class="subtitle">
-        Manage your MarketFlow account.
+        Manage your MarketFlow account
+        and security.
       </p>
 
-      <div class="campaign-form">
+      <section class="settings-card">
 
-        <label>
-          Account email
-          <input value="${user}" disabled>
-        </label>
+        <div class="settings-card-head">
+          <div>
+            <h2>Profile</h2>
 
-        <label>
-          Default currency
-          <select>
-            <option>USD</option>
-            <option>EUR</option>
-            <option>EGP</option>
-            <option>SAR</option>
-          </select>
-        </label>
+            <p>
+              Update your account details.
+            </p>
+          </div>
 
-        <label>
-          Default language
-          <select>
-            <option>English</option>
-            <option>Arabic</option>
-          </select>
-        </label>
+          <span>👤</span>
+        </div>
 
-        <button class="primary-action">
-          Save Settings
-        </button>
+        <form
+          id="profileSettingsForm"
+          class="campaign-form"
+        >
 
-      </div>
+          <label>
+            Name
+
+            <input
+              name="name"
+              value="${campaignEscape(
+                user.name || ""
+              )}"
+              required
+              minlength="2"
+            >
+          </label>
+
+          <label>
+            Email
+
+            <input
+              name="email"
+              type="email"
+              value="${campaignEscape(
+                user.email || ""
+              )}"
+              required
+            >
+          </label>
+
+          <label>
+            Current password
+
+            <input
+              name="current_password"
+              type="password"
+              autocomplete="current-password"
+              placeholder="Confirm your password"
+              required
+            >
+          </label>
+
+          <button
+            type="submit"
+            class="primary-action"
+          >
+            Save Profile
+          </button>
+
+          <p
+            id="profileSettingsMessage"
+            class="settings-message"
+          ></p>
+
+        </form>
+
+      </section>
+
+
+      <section class="settings-card">
+
+        <div class="settings-card-head">
+          <div>
+            <h2>Security</h2>
+
+            <p>
+              Change your account password.
+            </p>
+          </div>
+
+          <span>🔐</span>
+        </div>
+
+        <form
+          id="passwordSettingsForm"
+          class="campaign-form"
+        >
+
+          <label>
+            Current password
+
+            <input
+              name="current_password"
+              type="password"
+              autocomplete="current-password"
+              required
+            >
+          </label>
+
+          <label>
+            New password
+
+            <input
+              name="new_password"
+              type="password"
+              autocomplete="new-password"
+              minlength="8"
+              required
+            >
+          </label>
+
+          <label>
+            Confirm new password
+
+            <input
+              name="confirm_password"
+              type="password"
+              autocomplete="new-password"
+              minlength="8"
+              required
+            >
+          </label>
+
+          <button
+            type="submit"
+            class="primary-action"
+          >
+            Change Password
+          </button>
+
+          <p
+            id="passwordSettingsMessage"
+            class="settings-message"
+          ></p>
+
+        </form>
+
+      </section>
+
+      <section class="settings-security-note">
+        <strong>Security note</strong>
+
+        <p>
+          Changing your password signs out
+          old MarketFlow sessions for your
+          account.
+        </p>
+      </section>
+
     </section>
   `;
 }
+
 
 export function campaignReviewView(campaign) {
   if (!campaign) {

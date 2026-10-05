@@ -139,3 +139,49 @@ export function getDashboardOverview() {
     "/api/dashboard/overview"
   );
 }
+
+export function getNotifications(
+  limit = 50
+) {
+  return request(
+    `/api/notifications?limit=${limit}`
+  );
+}
+
+export function markNotificationRead(id) {
+  return request(
+    `/api/notifications/${id}/read`,
+    {
+      method: "POST"
+    }
+  );
+}
+
+export function markAllNotificationsRead() {
+  return request(
+    "/api/notifications/read-all",
+    {
+      method: "POST"
+    }
+  );
+}
+
+export function updateProfile(data) {
+  return request(
+    "/api/account/profile",
+    {
+      method: "PUT",
+      body: JSON.stringify(data)
+    }
+  );
+}
+
+export function changePassword(data) {
+  return request(
+    "/api/account/password",
+    {
+      method: "PUT",
+      body: JSON.stringify(data)
+    }
+  );
+}

@@ -1271,3 +1271,190 @@ button:disabled {
       repeat(2, minmax(0, 1fr));
   }
 }
+
+/* ==========================
+   NOTIFICATIONS
+========================== */
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notification-button {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  border-radius: 15px;
+  font-size: 20px;
+}
+
+.notification-badge {
+  position: absolute;
+  top: -4px;
+  right: -5px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #111827;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 20px;
+  text-align: center;
+}
+
+.notifications-header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.mark-all-notifications {
+  align-self: flex-start;
+  font-weight: 800;
+  padding: 10px 14px;
+  border-radius: 12px;
+}
+
+.notifications-list {
+  display: grid;
+  gap: 10px;
+}
+
+.notification-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns:
+    42px 1fr 10px;
+  gap: 12px;
+  align-items: flex-start;
+  text-align: left;
+  background: #fff;
+  border-radius: 18px;
+  padding: 16px;
+}
+
+.notification-item.unread {
+  box-shadow:
+    inset 4px 0 0 #111827;
+}
+
+.notification-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: #f3f4f6;
+  font-size: 19px;
+}
+
+.notification-content {
+  display: grid;
+  gap: 4px;
+}
+
+.notification-title {
+  font-weight: 900;
+}
+
+.notification-message {
+  line-height: 1.4;
+}
+
+.notification-content small {
+  opacity: .55;
+}
+
+.notification-unread-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #111827;
+  margin-top: 7px;
+}
+
+/* Prevent bottom navigation from
+   covering the last content */
+.page {
+  padding-bottom: 135px;
+}
+
+@media (min-width: 800px) {
+  .notifications-header {
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+}
+
+/* ==========================
+   ACCOUNT SETTINGS
+========================== */
+
+.settings-page {
+  display: grid;
+  gap: 18px;
+}
+
+.settings-card {
+  background: #fff;
+  border-radius: 22px;
+  padding: 18px;
+}
+
+.settings-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.settings-card-head h2 {
+  margin: 0 0 4px;
+}
+
+.settings-card-head p {
+  margin: 0;
+  opacity: .6;
+}
+
+.settings-card-head > span {
+  font-size: 25px;
+}
+
+.settings-message {
+  min-height: 20px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.settings-security-note {
+  padding: 16px;
+  border-radius: 18px;
+  background: #f0f2f5;
+}
+
+.settings-security-note p {
+  margin-bottom: 0;
+  opacity: .7;
+}
+
+@media (min-width: 800px) {
+  .settings-page {
+    grid-template-columns:
+      repeat(2, minmax(0, 1fr));
+  }
+
+  .settings-page >
+  .review-kicker,
+  .settings-page > h1,
+  .settings-page > .subtitle,
+  .settings-security-note {
+    grid-column: 1 / -1;
+  }
+}

@@ -1,7 +1,12 @@
 import {
   getCurrentUser,
   logoutUser,
+  updateProfile,
+  changePassword,
   getDashboardOverview,
+  getNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
   previewCampaign,
   createCampaign,
   getCampaigns,
@@ -140,14 +145,19 @@ async function showPage(page) {
     }
 
     if (page === "notifications") {
+      const response =
+        await getNotifications();
+
       pageContent.innerHTML =
-        notificationsView();
+        notificationsView(
+          response
+        );
     }
 
     if (page === "settings") {
       pageContent.innerHTML =
         settingsView(
-          currentUser?.email || ""
+          currentUser || {}
         );
     }
 
@@ -159,6 +169,10 @@ async function showPage(page) {
     attachCampaignReview();
     attachCampaignFilters();
     attachCampaignActions();
+    attachNotifications();
+    attachAccountSettings();
+
+    await refreshNotificationBadge();
 
     window.scrollTo(0, 0);
 
@@ -558,6 +572,257 @@ async function showCampaignReview(id) {
     alert(error.message);
   }
 }
+
+async function refreshNotificationBadge() {
+  const badge =
+    document.querySelector(
+      "#notificationBadge"
+    );
+
+  if (!badge) return;
+
+  try {
+    const response =
+      await getNotifications(1);
+
+    const count =
+      response.unread_count || 0;
+
+    badge.textContent =
+      count > 99
+        ? "99+"
+        : String(count);
+
+    badge.hidden =
+      count === 0;
+
+  } catch {
+    badge.hidden = true;
+  }
+}
+
+
+function attachNotifications() {
+
+  const markAllButton =
+    document.querySelector(
+      "#markAllNotifications"
+    );
+
+  if (markAllButton) {
+    markAllButton.onclick =
+      async () => {
+
+        try {
+          await markAllNotificationsRead();
+
+          await showPage(
+            "notifications"
+          );
+
+        } catch (error) {
+          alert(error.message);
+        }
+      };
+  }
+
+
+  document
+    .querySelectorAll(
+      "[data-notification-id]"
+    )
+    .forEach(button => {
+
+      button.onclick =
+        async () => {
+
+          try {
+            await markNotificationRead(
+              button.dataset
+                .notificationId
+            );
+
+            await refreshNotificationBadge();
+
+            const campaignId =
+              button.dataset
+                .campaignId;
+
+            if (campaignId) {
+              await showCampaignReview(
+                campaignId
+              );
+            } else {
+              await showPage(
+                "notifications"
+              );
+            }
+
+          } catch (error) {
+            alert(error.message);
+          }
+        };
+
+    });
+}
+
+
+function attachAccountSettings() {
+
+  const profileForm =
+    document.querySelector(
+      "#profileSettingsForm"
+    );
+
+  if (profileForm) {
+
+    profileForm.onsubmit =
+      async event => {
+
+        event.preventDefault();
+
+        const button =
+          profileForm.querySelector(
+            'button[type="submit"]'
+          );
+
+        const message =
+          document.querySelector(
+            "#profileSettingsMessage"
+          );
+
+        const data =
+          new FormData(profileForm);
+
+        button.disabled = true;
+        button.textContent =
+          "Saving...";
+
+        message.textContent = "";
+
+        try {
+          const response =
+            await updateProfile({
+              name:
+                data.get("name"),
+              email:
+                data.get("email"),
+              current_password:
+                data.get(
+                  "current_password"
+                )
+            });
+
+          currentUser =
+            response.user;
+
+          const headerEmail =
+            document.querySelector(
+              ".topbar small"
+            );
+
+          if (headerEmail) {
+            headerEmail.textContent =
+              currentUser.email;
+          }
+
+          message.textContent =
+            "Profile updated successfully.";
+
+          profileForm
+            .querySelector(
+              '[name="current_password"]'
+            )
+            .value = "";
+
+        } catch (error) {
+          message.textContent =
+            error.message;
+        }
+
+        button.disabled = false;
+        button.textContent =
+          "Save Profile";
+      };
+  }
+
+
+  const passwordForm =
+    document.querySelector(
+      "#passwordSettingsForm"
+    );
+
+  if (passwordForm) {
+
+    passwordForm.onsubmit =
+      async event => {
+
+        event.preventDefault();
+
+        const button =
+          passwordForm.querySelector(
+            'button[type="submit"]'
+          );
+
+        const message =
+          document.querySelector(
+            "#passwordSettingsMessage"
+          );
+
+        const data =
+          new FormData(passwordForm);
+
+        const newPassword =
+          data.get("new_password");
+
+        const confirmPassword =
+          data.get(
+            "confirm_password"
+          );
+
+        message.textContent = "";
+
+        if (
+          newPassword !==
+          confirmPassword
+        ) {
+          message.textContent =
+            "New passwords do not match.";
+
+          return;
+        }
+
+        button.disabled = true;
+        button.textContent =
+          "Changing password...";
+
+        try {
+          await changePassword({
+            current_password:
+              data.get(
+                "current_password"
+              ),
+            new_password:
+              newPassword
+          });
+
+          passwordForm.reset();
+
+          message.textContent =
+            "Password changed successfully.";
+
+        } catch (error) {
+          message.textContent =
+            error.message;
+        }
+
+        button.disabled = false;
+        button.textContent =
+          "Change Password";
+      };
+  }
+}
+
 
 function setActiveNavigation(page) {
   const activePage =

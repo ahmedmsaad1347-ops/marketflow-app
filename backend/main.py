@@ -199,6 +199,28 @@ def init_db():
         )
     """)
 
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS notification_reads (
+            user_id INTEGER NOT NULL,
+            event_id INTEGER NOT NULL,
+            read_at TEXT NOT NULL,
+
+            PRIMARY KEY (
+                user_id,
+                event_id
+            )
+        )
+    """)
+
+    db.execute("""
+        CREATE INDEX IF NOT EXISTS
+        idx_notification_reads_user
+        ON notification_reads(
+            user_id,
+            event_id
+        )
+    """)
+
     columns = [
         row["name"]
         for row in db.execute(
@@ -512,6 +534,35 @@ class LoginData(BaseModel):
     password: str
 
 
+class ProfileUpdateData(BaseModel):
+    name: str = Field(
+        min_length=2,
+        max_length=80
+    )
+
+    email: str = Field(
+        min_length=5,
+        max_length=150
+    )
+
+    current_password: str = Field(
+        min_length=8,
+        max_length=128
+    )
+
+
+class PasswordChangeData(BaseModel):
+    current_password: str = Field(
+        min_length=8,
+        max_length=128
+    )
+
+    new_password: str = Field(
+        min_length=8,
+        max_length=128
+    )
+
+
 class CampaignData(BaseModel):
     name: str
     product: str
@@ -714,6 +765,195 @@ def logout(
     response.delete_cookie(
         SESSION_COOKIE,
         path="/"
+    )
+
+    return {
+        "success": True
+    }
+
+
+@app.put("/api/account/profile")
+def update_profile(
+    data: ProfileUpdateData,
+    user=Depends(get_current_user)
+):
+    name = data.name.strip()
+    email = data.email.strip().lower()
+
+    if len(name) < 2:
+        raise HTTPException(
+            status_code=400,
+            detail="Name is too short"
+        )
+
+    if (
+        "@" not in email
+        or "." not in email.split("@")[-1]
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Enter a valid email address"
+        )
+
+    db = get_db()
+
+    account = db.execute("""
+        SELECT *
+        FROM users
+        WHERE id = ?
+    """, (
+        user["id"],
+    )).fetchone()
+
+    if not account:
+        db.close()
+
+        raise HTTPException(
+            status_code=404,
+            detail="Account not found"
+        )
+
+    if not verify_password(
+        data.current_password,
+        account["password_hash"],
+        account["password_salt"]
+    ):
+        db.close()
+
+        raise HTTPException(
+            status_code=401,
+            detail="Current password is incorrect"
+        )
+
+    duplicate = db.execute("""
+        SELECT id
+        FROM users
+        WHERE email = ?
+        AND id != ?
+    """, (
+        email,
+        user["id"]
+    )).fetchone()
+
+    if duplicate:
+        db.close()
+
+        raise HTTPException(
+            status_code=409,
+            detail="Email is already in use"
+        )
+
+    db.execute("""
+        UPDATE users
+        SET
+            name = ?,
+            email = ?
+        WHERE id = ?
+    """, (
+        name,
+        email,
+        user["id"]
+    ))
+
+    db.commit()
+    db.close()
+
+    return {
+        "success": True,
+        "user": {
+            "id": user["id"],
+            "name": name,
+            "email": email
+        }
+    }
+
+
+@app.put("/api/account/password")
+def change_password(
+    data: PasswordChangeData,
+    request: Request,
+    response: Response,
+    user=Depends(get_current_user)
+):
+    if (
+        data.current_password ==
+        data.new_password
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "New password must be "
+                "different from the current password"
+            )
+        )
+
+    db = get_db()
+
+    account = db.execute("""
+        SELECT *
+        FROM users
+        WHERE id = ?
+    """, (
+        user["id"],
+    )).fetchone()
+
+    if not account:
+        db.close()
+
+        raise HTTPException(
+            status_code=404,
+            detail="Account not found"
+        )
+
+    if not verify_password(
+        data.current_password,
+        account["password_hash"],
+        account["password_salt"]
+    ):
+        db.close()
+
+        raise HTTPException(
+            status_code=401,
+            detail="Current password is incorrect"
+        )
+
+    password_hash, salt = hash_password(
+        data.new_password
+    )
+
+    db.execute("""
+        UPDATE users
+        SET
+            password_hash = ?,
+            password_salt = ?
+        WHERE id = ?
+    """, (
+        password_hash,
+        salt,
+        user["id"]
+    ))
+
+    # Log out all old sessions
+    db.execute("""
+        DELETE FROM sessions
+        WHERE user_id = ?
+    """, (
+        user["id"],
+    ))
+
+    db.commit()
+
+    # Create one fresh session
+    new_token = create_session(
+        db,
+        user["id"]
+    )
+
+    db.close()
+
+    set_session_cookie(
+        response,
+        new_token
     )
 
     return {
@@ -1284,6 +1524,177 @@ def analytics_sum(
     )).fetchone()
 
     return build_analytics_metrics(row)
+
+
+@app.get("/api/notifications")
+def get_notifications(
+    limit: int = 50,
+    user=Depends(get_current_user)
+):
+    limit = max(
+        1,
+        min(limit, 100)
+    )
+
+    db = get_db()
+
+    unread_row = db.execute("""
+        SELECT
+            COUNT(*) AS unread
+        FROM campaign_events AS events
+
+        LEFT JOIN notification_reads AS reads
+        ON reads.event_id = events.id
+        AND reads.user_id = events.user_id
+
+        WHERE events.user_id = ?
+        AND reads.event_id IS NULL
+    """, (
+        user["id"],
+    )).fetchone()
+
+    rows = db.execute("""
+        SELECT
+            events.id,
+            events.campaign_id,
+            events.event_type,
+            events.message,
+            events.created_at,
+
+            COALESCE(
+                campaigns.name,
+                'Campaign'
+            ) AS campaign_name,
+
+            CASE
+                WHEN reads.event_id IS NULL
+                THEN 0
+                ELSE 1
+            END AS is_read
+
+        FROM campaign_events AS events
+
+        LEFT JOIN campaigns
+        ON campaigns.id =
+            events.campaign_id
+        AND campaigns.user_id =
+            events.user_id
+
+        LEFT JOIN notification_reads AS reads
+        ON reads.event_id =
+            events.id
+        AND reads.user_id =
+            events.user_id
+
+        WHERE events.user_id = ?
+
+        ORDER BY events.id DESC
+
+        LIMIT ?
+    """, (
+        user["id"],
+        limit
+    )).fetchall()
+
+    db.close()
+
+    return {
+        "success": True,
+        "unread_count":
+            unread_row["unread"] or 0,
+
+        "notifications": [
+            dict(row)
+            for row in rows
+        ]
+    }
+
+
+@app.post(
+    "/api/notifications/{event_id}/read"
+)
+def mark_notification_read(
+    event_id: int,
+    user=Depends(get_current_user)
+):
+    db = get_db()
+
+    event = db.execute("""
+        SELECT id
+        FROM campaign_events
+        WHERE id = ?
+        AND user_id = ?
+    """, (
+        event_id,
+        user["id"]
+    )).fetchone()
+
+    if not event:
+        db.close()
+
+        raise HTTPException(
+            status_code=404,
+            detail="Notification not found"
+        )
+
+    db.execute("""
+        INSERT OR IGNORE
+        INTO notification_reads (
+            user_id,
+            event_id,
+            read_at
+        )
+        VALUES (?, ?, ?)
+    """, (
+        user["id"],
+        event_id,
+        datetime.utcnow().isoformat()
+    ))
+
+    db.commit()
+    db.close()
+
+    return {
+        "success": True
+    }
+
+
+@app.post("/api/notifications/read-all")
+def mark_all_notifications_read(
+    user=Depends(get_current_user)
+):
+    db = get_db()
+
+    now = datetime.utcnow().isoformat()
+
+    db.execute("""
+        INSERT OR IGNORE
+        INTO notification_reads (
+            user_id,
+            event_id,
+            read_at
+        )
+
+        SELECT
+            ?,
+            id,
+            ?
+
+        FROM campaign_events
+
+        WHERE user_id = ?
+    """, (
+        user["id"],
+        now,
+        user["id"]
+    ))
+
+    db.commit()
+    db.close()
+
+    return {
+        "success": True
+    }
 
 
 @app.get("/api/dashboard/overview")

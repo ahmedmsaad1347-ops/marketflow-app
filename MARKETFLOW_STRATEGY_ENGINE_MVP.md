@@ -31,3 +31,16 @@ AI can later be layered on top for richer explanation, ad copy, scripts, creativ
 ## Safety behavior
 
 Accepting a recommendation creates a Draft only. It does not publish an ad and does not spend money.
+
+
+## Strategy Engine V2
+
+- Candidate scoring instead of one direct platform rule.
+- Campaign-type recommendation, not just platform name.
+- Automation, audience, placement and bidding recommendations.
+- Google Search / Performance Max / Demand Gen support.
+- Meta Advantage+ campaign logic.
+- TikTok Smart+ plus market-aware Search Ads eligibility.
+- Versioned capability snapshot.
+- Channel fit scorecard.
+- Gross-margin CPA/ROAS is explicitly treated as a planning threshold until contribution-margin inputs are added.

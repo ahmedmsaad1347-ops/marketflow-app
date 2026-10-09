@@ -288,3 +288,147 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+
+/* Strategy Engine V2 */
+
+.strategy-inline-note {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #f3f4f6;
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.strategy-recommendation-hero {
+  padding: 22px;
+  border-radius: 24px;
+  background: #111827;
+  color: #fff;
+}
+
+.strategy-recommendation-hero > span {
+  display: block;
+  color: #9ca3af;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 1.4px;
+}
+
+.strategy-recommendation-hero h1 {
+  margin: 9px 0 7px;
+  font-size: clamp(30px, 8vw, 52px);
+  line-height: 1;
+  letter-spacing: -1.5px;
+}
+
+.strategy-recommendation-hero p {
+  margin: 0;
+  color: #d1d5db;
+}
+
+.strategy-recommendation-hero small {
+  display: block;
+  margin-top: 13px;
+  color: #9ca3af;
+}
+
+.strategy-automation-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.strategy-automation-grid > div {
+  padding: 14px;
+  border-radius: 16px;
+  background: #f7f8fa;
+}
+
+.strategy-automation-grid small,
+.strategy-bidding-box small {
+  display: block;
+  margin-bottom: 5px;
+  opacity: .55;
+}
+
+.strategy-automation-grid strong {
+  display: block;
+  line-height: 1.45;
+}
+
+.strategy-bidding-box {
+  margin-top: 10px;
+  padding: 14px;
+  border-radius: 16px;
+  background: #111827;
+  color: #fff;
+}
+
+.strategy-bidding-box p {
+  margin: 0;
+  color: #d1d5db;
+  line-height: 1.55;
+}
+
+.strategy-score-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 15px;
+}
+
+.strategy-score-row {
+  padding: 13px;
+  border-radius: 16px;
+  background: #f7f8fa;
+}
+
+.strategy-score-row.not-eligible {
+  opacity: .58;
+}
+
+.strategy-score-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.strategy-score-head div {
+  display: grid;
+  gap: 2px;
+}
+
+.strategy-score-head small {
+  opacity: .55;
+}
+
+.strategy-score-head > span {
+  font-weight: 900;
+}
+
+.strategy-score-track {
+  height: 7px;
+  margin-top: 10px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  overflow: hidden;
+}
+
+.strategy-score-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: #111827;
+}
+
+.strategy-score-note {
+  display: block;
+  margin-top: 8px;
+  line-height: 1.4;
+}
+
+@media (min-width: 800px) {
+  .strategy-automation-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

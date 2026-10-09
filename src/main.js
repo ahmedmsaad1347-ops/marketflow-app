@@ -56,8 +56,21 @@ export async function renderRoute() {
 }
 
 
-function navigate(path) {
-  window.history.pushState({}, "", path);
+function navigate(
+  path,
+  options = {}
+) {
+  const method =
+    options.replace
+      ? "replaceState"
+      : "pushState";
+
+  window.history[method](
+    {},
+    "",
+    path
+  );
+
   renderRoute();
 }
 
@@ -98,7 +111,7 @@ function attachLogin() {
         password: data.get("password")
       });
 
-      navigate("/app");
+      navigate("/app", { replace: true });
 
     } catch (err) {
       error.textContent = err.message;
@@ -133,7 +146,7 @@ function attachSignup() {
         password: data.get("password")
       });
 
-      navigate("/app");
+      navigate("/app", { replace: true });
 
     } catch (err) {
       error.textContent = err.message;

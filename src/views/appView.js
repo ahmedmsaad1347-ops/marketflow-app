@@ -214,6 +214,7 @@ export function dashboardView(data = {}) {
         <div class="strategy-engine-actions">
           <button data-strategy-start="guided" class="strategy-primary">Guide Me</button>
           <button data-strategy-start="quick" class="strategy-secondary">I Know What I Want</button>
+          <button data-strategy-last class="strategy-secondary">View Last Strategy</button>
         </div>
 
         <small>

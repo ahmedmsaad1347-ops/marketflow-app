@@ -109,6 +109,12 @@ export function strategyView(mode = "guided") {
               <option value="90">90 days</option>
             </select>
           </label>
+
+          <p class="strategy-inline-note">
+            V2 still uses gross margin for planning. Before a real launch,
+            contribution margin should include shipping, payment fees,
+            returns, discounts and other variable costs.
+          </p>
         </section>
 
         <section class="strategy-step" data-strategy-step="3" ${guided ? "hidden" : ""}>
@@ -189,6 +195,8 @@ export function strategyResultView(response) {
   const budget = strategy.budget_plan || {};
   const economics = strategy.economics || {};
   const creative = strategy.creative_plan || {};
+  const automation = strategy.automation_plan || {};
+  const scorecard = strategy.channel_scorecard || [];
 
   const list = items =>
     (items || []).length
@@ -202,19 +210,94 @@ export function strategyResultView(response) {
     </article>
   `).join("");
 
+  const scores = scorecard.map(item => `
+    <article class="strategy-score-row ${item.eligible ? "" : "not-eligible"}">
+      <div class="strategy-score-head">
+        <div>
+          <strong>${escapeHtml(item.campaign_type)}</strong>
+          <small>${escapeHtml(item.provider)}</small>
+        </div>
+        <span>${item.score}/100</span>
+      </div>
+
+      <div class="strategy-score-track">
+        <div class="strategy-score-fill" style="width:${Math.max(0, Math.min(100, item.score))}%"></div>
+      </div>
+
+      ${item.eligible
+        ? ""
+        : `<small class="strategy-score-note">Not launch-eligible from the current inputs / capability snapshot.</small>`}
+    </article>
+  `).join("");
+
   return `
     <section class="page strategy-result-page">
       <button data-strategy-start="guided" class="back-button">← Adjust answers</button>
 
-      <p class="review-kicker">MARKETFLOW RECOMMENDATION</p>
-      <h1>Your campaign plan</h1>
+      <p class="review-kicker">MARKETFLOW STRATEGY ENGINE V2</p>
+
+      <section class="strategy-recommendation-hero">
+        <span>RECOMMENDED CAMPAIGN</span>
+
+        <h1>${escapeHtml(strategy.recommended_campaign_type || strategy.recommended_platform || "")}</h1>
+
+        <p>
+          ${escapeHtml(strategy.recommended_platform || "")}
+          · ${escapeHtml(strategy.requested_objective || "")}
+          · Fit ${escapeHtml(strategy.fit_score || 0)}/100
+        </p>
+
+        <small>
+          Capability snapshot: ${escapeHtml(strategy.capability_snapshot || "")}
+        </small>
+      </section>
+
       <p class="subtitle">${escapeHtml(strategy.disclaimer || "")}</p>
 
       <section class="strategy-decision-card">
-        <div><small>Primary channel</small><strong>${escapeHtml(strategy.recommended_platform || "")}</strong></div>
-        <div><small>Objective</small><strong>${escapeHtml(strategy.requested_objective || "")}</strong></div>
+        <div><small>Platform</small><strong>${escapeHtml(strategy.recommended_platform || "")}</strong></div>
+        <div><small>Campaign type</small><strong>${escapeHtml(strategy.recommended_campaign_type || "")}</strong></div>
         <div><small>Funnel stage</small><strong>${escapeHtml(strategy.funnel_stage || "")}</strong></div>
         <div><small>Optimize for</small><strong>${escapeHtml(strategy.optimization_event || "")}</strong></div>
+      </section>
+
+      <section class="strategy-card">
+        <p class="review-kicker">AUTOMATION & BIDDING</p>
+
+        <div class="strategy-automation-grid">
+          <div>
+            <small>Automation</small>
+            <strong>${escapeHtml(automation.automation_mode || "")}</strong>
+          </div>
+
+          <div>
+            <small>Audience</small>
+            <strong>${escapeHtml(automation.audience_approach || "")}</strong>
+          </div>
+
+          <div>
+            <small>Placements</small>
+            <strong>${escapeHtml(automation.placements || "")}</strong>
+          </div>
+        </div>
+
+        <div class="strategy-bidding-box">
+          <small>Bidding recommendation</small>
+          <p>${escapeHtml(automation.bidding || "")}</p>
+        </div>
+      </section>
+
+      <section class="strategy-card">
+        <p class="review-kicker">CHANNEL FIT SCORECARD</p>
+        <p class="strategy-note">
+          These are internal fit scores from the current inputs — not performance forecasts.
+        </p>
+        <div class="strategy-score-list">${scores}</div>
+      </section>
+
+      <section class="strategy-card">
+        <p class="review-kicker">AVAILABILITY CHECK</p>
+        <p>${escapeHtml(strategy.availability_note || "")}</p>
       </section>
 
       <section class="strategy-card">
@@ -240,7 +323,12 @@ export function strategyResultView(response) {
           </div>
           <p class="strategy-note">${escapeHtml(economics.note || "")}</p>
         </section>
-      ` : ""}
+      ` : `
+        <section class="strategy-card">
+          <p class="review-kicker">BUSINESS ECONOMICS</p>
+          <p>${escapeHtml(economics.note || "")}</p>
+        </section>
+      `}
 
       <section class="strategy-card">
         <p class="review-kicker">AUDIENCE PLAN</p>
@@ -250,6 +338,10 @@ export function strategyResultView(response) {
       <section class="strategy-card">
         <p class="review-kicker">CREATIVE PLAN</p>
         <div class="strategy-angle-grid">${angles}</div>
+
+        <h3>Platform requirements</h3>
+        <ul class="strategy-list">${list(creative.formats)}</ul>
+
         <p><strong>CTA:</strong> ${escapeHtml(creative.cta || "")}</p>
       </section>
 
@@ -269,7 +361,10 @@ export function strategyResultView(response) {
         <div>
           <p class="review-kicker">NEXT STEP</p>
           <h2>${escapeHtml(strategy.launch_readiness || "")}</h2>
-          <p>Accepting this plan creates a Draft campaign. Nothing is published and no money is spent.</p>
+          <p>
+            Accepting this plan creates a Draft campaign.
+            Nothing is published and no money is spent.
+          </p>
         </div>
 
         <button

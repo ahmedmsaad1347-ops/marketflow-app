@@ -8,3 +8,11 @@ marketflow.db
 
 .strategy_mvp_backup_*/
 marketflow_strategy_engine_mvp_installer.py
+
+.strategy_v2_backup_*/
+marketflow_strategy_engine_v2_installer.py
+
+.strategy_v2_backup_*/
+.navigation_backup_*/
+marketflow_strategy_engine_v2_installer.py
+marketflow_navigation_last_strategy_installer.py

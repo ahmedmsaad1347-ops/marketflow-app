@@ -4,6 +4,7 @@ import {
   updateProfile,
   changePassword,
   generateStrategy,
+  getLatestStrategy,
   acceptStrategy,
   getDashboardOverview,
   getNotifications,
@@ -60,14 +61,14 @@ export async function startApp() {
 
     currentUser = response.user;
 
-    showApp(currentUser);
+    await showApp(currentUser);
   } catch {
-    window.history.pushState({}, "", "/login");
+    window.history.replaceState({}, "", "/login");
     window.dispatchEvent(new PopStateEvent("popstate"));
   }
 }
 
-function showApp(user) {
+async function showApp(user) {
   app.innerHTML = appView(user.email);
 
   const logoutButton =
@@ -80,17 +81,137 @@ function showApp(user) {
 
     currentUser = null;
 
-    window.history.pushState({}, "", "/");
+    window.history.replaceState({}, "", "/");
 
     window.dispatchEvent(
       new PopStateEvent("popstate")
     );
   });
 
-  showPage("dashboard");
+  const state =
+    window.history.state || {};
+
+  if (
+    !state.marketflowApp ||
+    !state.page
+  ) {
+    window.history.replaceState(
+      {
+        marketflowApp: true,
+        page: "dashboard"
+      },
+      "",
+      "/app"
+    );
+
+    await showPage(
+      "dashboard",
+      false
+    );
+
+    return;
+  }
+
+  await renderAppHistoryState(
+    state
+  );
 }
 
-async function showPage(page) {
+
+function saveAppHistory(
+  page,
+  extra = {}
+) {
+  if (
+    window.location.pathname !==
+    "/app"
+  ) {
+    return;
+  }
+
+  const nextState = {
+    marketflowApp: true,
+    page,
+    ...extra
+  };
+
+  const current =
+    window.history.state || {};
+
+  const sameState =
+    current.marketflowApp &&
+    current.page ===
+      nextState.page &&
+    String(
+      current.id || ""
+    ) ===
+      String(
+        nextState.id || ""
+      );
+
+  if (sameState) {
+    return;
+  }
+
+  window.history.pushState(
+    nextState,
+    "",
+    "/app"
+  );
+}
+
+
+async function renderAppHistoryState(
+  state = {}
+) {
+  if (
+    state.page ===
+    "campaign-review" &&
+    state.id
+  ) {
+    await showCampaignReview(
+      state.id,
+      false
+    );
+
+    return;
+  }
+
+  if (
+    state.page ===
+    "campaign-edit" &&
+    state.id
+  ) {
+    await showCampaignEdit(
+      state.id,
+      false
+    );
+
+    return;
+  }
+
+  if (
+    state.page ===
+    "strategy-result"
+  ) {
+    await showLatestStrategy(
+      false
+    );
+
+    return;
+  }
+
+  await showPage(
+    state.page || "dashboard",
+    false
+  );
+}
+
+
+async function showPage(
+  page,
+  pushHistory = true
+) {
   const pageContent =
     document.querySelector("#pageContent");
 
@@ -175,10 +296,15 @@ async function showPage(page) {
         );
     }
 
+    if (pushHistory) {
+      saveAppHistory(page);
+    }
+
     setActiveNavigation(page);
 
     attachNavigation();
     attachStrategyLaunchers();
+    attachStrategyLast();
     attachStrategyWizard();
     attachStrategyResultActions();
     attachCampaignForm();
@@ -222,6 +348,93 @@ function attachStrategyLaunchers() {
         showPage("strategy");
       };
     });
+}
+
+
+function attachStrategyLast() {
+  document
+    .querySelectorAll(
+      "[data-strategy-last]"
+    )
+    .forEach(button => {
+
+      button.onclick =
+        async () => {
+          const oldText =
+            button.textContent;
+
+          button.disabled = true;
+          button.textContent =
+            "Loading...";
+
+          try {
+            await showLatestStrategy();
+          } catch (error) {
+            button.disabled = false;
+            button.textContent =
+              oldText;
+
+            alert(error.message);
+          }
+        };
+
+    });
+}
+
+
+async function showLatestStrategy(
+  pushHistory = true
+) {
+  const response =
+    await getLatestStrategy();
+
+  const latest =
+    response.strategy;
+
+  if (!latest) {
+    alert(
+      "No saved strategy yet. Build your first strategy first."
+    );
+
+    return;
+  }
+
+  const pageContent =
+    document.querySelector(
+      "#pageContent"
+    );
+
+  pageContent.innerHTML =
+    strategyResultView({
+      strategy_id:
+        latest.id,
+      strategy:
+        latest.output,
+      status:
+        latest.status,
+      campaign_id:
+        latest.campaign_id
+    });
+
+  if (pushHistory) {
+    saveAppHistory(
+      "strategy-result"
+    );
+  }
+
+  setActiveNavigation(
+    "strategy"
+  );
+
+  attachNavigation();
+  attachStrategyLaunchers();
+  attachStrategyLast();
+  attachStrategyResultActions();
+
+  window.scrollTo(
+    0,
+    0
+  );
 }
 
 
@@ -327,9 +540,14 @@ function attachStrategyWizard() {
       const pageContent = document.querySelector("#pageContent");
       pageContent.innerHTML = strategyResultView(response);
 
+      saveAppHistory(
+        "strategy-result"
+      );
+
       setActiveNavigation("strategy");
       attachNavigation();
       attachStrategyLaunchers();
+      attachStrategyLast();
       attachStrategyResultActions();
       window.scrollTo(0, 0);
     } catch (error) {
@@ -653,7 +871,10 @@ function attachCampaignActions() {
 }
 
 
-async function showCampaignEdit(id) {
+async function showCampaignEdit(
+  id,
+  pushHistory = true
+) {
   const pageContent =
     document.querySelector(
       "#pageContent"
@@ -667,6 +888,13 @@ async function showCampaignEdit(id) {
       campaignFormView(
         response.campaign
       );
+
+    if (pushHistory) {
+      saveAppHistory(
+        "campaign-edit",
+        { id }
+      );
+    }
 
     setActiveNavigation(
       "campaign-edit"
@@ -725,7 +953,10 @@ function attachCampaignReview() {
     });
 }
 
-async function showCampaignReview(id) {
+async function showCampaignReview(
+  id,
+  pushHistory = true
+) {
   const pageContent =
     document.querySelector("#pageContent");
 
@@ -737,6 +968,13 @@ async function showCampaignReview(id) {
       campaignReviewView(
         response.campaign
       );
+
+    if (pushHistory) {
+      saveAppHistory(
+        "campaign-review",
+        { id }
+      );
+    }
 
     setActiveNavigation("campaigns");
 

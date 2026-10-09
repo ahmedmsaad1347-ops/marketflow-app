@@ -16,3 +16,6 @@ marketflow_strategy_engine_v2_installer.py
 .navigation_backup_*/
 marketflow_strategy_engine_v2_installer.py
 marketflow_navigation_last_strategy_installer.py
+
+.strategy_v21_backup_*/
+marketflow_strategy_v21_economics_installer.py

@@ -523,6 +523,10 @@ function attachStrategyWizard() {
       campaign_days: Number(data.get("campaign_days") || 30),
       price: numberOrZero("price"),
       gross_margin_percent: numberOrZero("gross_margin_percent"),
+      extra_variable_cost_per_order:
+        numberOrZero("extra_variable_cost_per_order"),
+      lead_to_sale_rate_percent:
+        numberOrZero("lead_to_sale_rate_percent"),
       has_website: data.get("has_website") === "on",
       has_tracking: data.get("has_tracking") === "on",
       has_previous_sales: data.get("has_previous_sales") === "on",

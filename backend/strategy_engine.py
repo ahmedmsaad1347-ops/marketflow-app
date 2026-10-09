@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 
 CAPABILITY_SNAPSHOT = "2026-10-09"
-ENGINE_VERSION = "strategy-v2-2026-10"
+ENGINE_VERSION = "strategy-v2.1-economics-2026-10"
 
 
 class StrategyRequest(BaseModel):
@@ -24,6 +24,8 @@ class StrategyRequest(BaseModel):
     campaign_days: int = Field(default=30, ge=1, le=365)
     price: float = Field(default=0, ge=0)
     gross_margin_percent: float = Field(default=0, ge=0, le=100)
+    extra_variable_cost_per_order: float = Field(default=0, ge=0)
+    lead_to_sale_rate_percent: float = Field(default=0, ge=0, le=100)
     has_website: bool = False
     has_tracking: bool = False
     has_previous_sales: bool = False
@@ -664,41 +666,196 @@ def _creative_plan(data, candidate):
 
 
 def _economics(data, currency):
+    objective = data.objective.strip().lower()
+
     result = {
         "available": False,
+        "cards": [],
+        "threshold_label": None,
         "note": (
-            "Numeric CPA/ROAS planning thresholds require both price and gross margin. "
-            "For production decisions, contribution margin should also include shipping, payment fees, "
-            "returns, discounts and other variable costs."
+            "Numeric business-economics thresholds require both order/customer value "
+            "and gross margin."
         ),
     }
 
     if data.price <= 0 or data.gross_margin_percent <= 0:
-        return result, 0
+        return result, 0, None
 
     margin_rate = data.gross_margin_percent / 100
     gross_profit = data.price * margin_rate
-    break_even_cpa = gross_profit
-    planning_target_cpa = break_even_cpa * 0.70
-    break_even_roas = 1 / margin_rate
-    planning_target_roas = break_even_roas / 0.70
 
-    return {
+    extra_variable_cost = min(
+        data.extra_variable_cost_per_order,
+        gross_profit,
+    )
+
+    contribution_per_sale = max(
+        gross_profit - extra_variable_cost,
+        0,
+    )
+
+    contribution_margin_rate = (
+        contribution_per_sale / data.price
+        if data.price > 0
+        else 0
+    )
+
+    cards = [
+        {
+            "label": "Gross profit / sale",
+            "value": _round(gross_profit),
+            "suffix": currency,
+        },
+        {
+            "label": "Extra variable cost / sale",
+            "value": _round(data.extra_variable_cost_per_order),
+            "suffix": currency,
+        },
+        {
+            "label": "Contribution / sale",
+            "value": _round(contribution_per_sale),
+            "suffix": currency,
+        },
+    ]
+
+    result = {
         "available": True,
         "currency": currency,
         "price": _round(data.price),
         "gross_margin_percent": _round(data.gross_margin_percent),
-        "gross_profit_per_order": _round(gross_profit),
-        "break_even_cpa": _round(break_even_cpa),
-        "planning_target_cpa": _round(planning_target_cpa),
-        "break_even_roas": _round(break_even_roas),
-        "planning_target_roas": _round(planning_target_roas),
-        "note": (
-            "These are gross-margin planning thresholds, not performance forecasts. "
-            "Before real launch decisions, replace gross margin with contribution margin after shipping, "
-            "payment fees, returns, discounts and other variable costs."
+        "extra_variable_cost_per_order": _round(
+            data.extra_variable_cost_per_order
         ),
-    }, planning_target_cpa
+        "contribution_per_sale": _round(contribution_per_sale),
+        "contribution_margin_percent": _round(
+            contribution_margin_rate * 100
+        ),
+        "cards": cards,
+        "threshold_label": None,
+        "note": (
+            "Planning thresholds use contribution margin after the extra variable "
+            "cost entered by the user. They are not performance forecasts."
+        ),
+    }
+
+    if contribution_per_sale <= 0:
+        result["note"] = (
+            "Contribution per sale is zero or negative after variable costs, "
+            "so MarketFlow cannot recommend a paid-acquisition threshold yet."
+        )
+        return result, 0, None
+
+    if objective == "sales":
+        break_even_cpa = contribution_per_sale
+        planning_target_cpa = break_even_cpa * 0.70
+        break_even_roas = (
+            1 / contribution_margin_rate
+            if contribution_margin_rate > 0
+            else 0
+        )
+        planning_target_roas = (
+            break_even_roas / 0.70
+            if break_even_roas > 0
+            else 0
+        )
+
+        result["cards"].extend([
+            {
+                "label": "Break-even CPA",
+                "value": _round(break_even_cpa),
+                "suffix": currency,
+            },
+            {
+                "label": "Planning CPA",
+                "value": _round(planning_target_cpa),
+                "suffix": currency,
+            },
+            {
+                "label": "Break-even ROAS",
+                "value": _round(break_even_roas),
+                "suffix": "x",
+            },
+            {
+                "label": "Planning ROAS",
+                "value": _round(planning_target_roas),
+                "suffix": "x",
+            },
+        ])
+
+        result["threshold_label"] = "planning CPA"
+        return (
+            result,
+            planning_target_cpa,
+            "planning CPA",
+        )
+
+    if objective in {"leads", "messages"}:
+        close_rate = (
+            data.lead_to_sale_rate_percent / 100
+        )
+
+        if close_rate <= 0:
+            result["note"] = (
+                "Contribution per sale is available, but a lead/message-to-sale "
+                "conversion rate is required before MarketFlow can calculate a "
+                "break-even cost per lead or conversation."
+            )
+            return result, 0, None
+
+        break_even_result_cost = (
+            contribution_per_sale * close_rate
+        )
+        planning_result_cost = (
+            break_even_result_cost * 0.70
+        )
+
+        unit = (
+            "lead"
+            if objective == "leads"
+            else "conversation"
+        )
+
+        result["cards"].extend([
+            {
+                "label": "Lead/message → sale rate",
+                "value": _round(
+                    data.lead_to_sale_rate_percent
+                ),
+                "suffix": "%",
+            },
+            {
+                "label": f"Break-even cost / {unit}",
+                "value": _round(
+                    break_even_result_cost
+                ),
+                "suffix": currency,
+            },
+            {
+                "label": f"Planning cost / {unit}",
+                "value": _round(
+                    planning_result_cost
+                ),
+                "suffix": currency,
+            },
+        ])
+
+        result["threshold_label"] = (
+            f"planning cost per {unit}"
+        )
+
+        return (
+            result,
+            planning_result_cost,
+            result["threshold_label"],
+        )
+
+    result["note"] = (
+        "Contribution margin is calculated, but MarketFlow does not force a "
+        "CPA/ROAS threshold for traffic or awareness because the selected "
+        "objective is not the final business outcome."
+    )
+
+    return result, 0, None
 
 
 def build_strategy(data):
@@ -721,7 +878,10 @@ def build_strategy(data):
 
     automation = _automation_plan(winner, data)
     bidding = _bidding_plan(winner, data)
-    economics, target_cpa = _economics(data, currency)
+    economics, target_metric, target_metric_label = _economics(
+        data,
+        currency,
+    )
 
     funnel = {
         "awareness": "Awareness",
@@ -766,25 +926,54 @@ def build_strategy(data):
         )
 
     tracking = []
+    sales_channel = data.sales_channel.strip().lower()
 
     if data.has_website:
-        tracking.append("Use UTMs on every ad and campaign link.")
+        tracking.append(
+            "Use UTMs on every ad and campaign link."
+        )
 
         if data.has_tracking:
             tracking.append(
-                "Verify the platform pixel/tag fires on the real conversion event before launch."
+                "Verify the website conversion event and its value/parameters before launch."
             )
             tracking.append(
-                "Where supported, add a server-side conversion signal so measurement is not dependent on browser tracking alone."
+                "Where supported, add a server-side conversion signal so measurement "
+                "is not dependent on browser tracking alone."
             )
         else:
             tracking.append(
-                "Install and verify platform tracking before optimizing for website conversions."
+                "Install and verify the relevant website conversion tracking before "
+                "optimizing for website conversions."
             )
 
-    else:
+    if sales_channel == "phone":
         tracking.append(
-            "Use platform lead/message tracking and record lead outcomes in a CRM or structured sheet."
+            "Track phone calls as conversions, define what counts as a qualified call, "
+            "and connect closed-sale outcomes back to the campaign where possible."
+        )
+
+    elif sales_channel in {
+        "whatsapp",
+        "messages",
+        "dm",
+        "direct messages",
+    }:
+        tracking.append(
+            "Track messaging-conversation starts and record qualified/closed outcomes "
+            "in a CRM or structured sales system."
+        )
+
+    elif sales_channel == "store":
+        tracking.append(
+            "Capture offline/store outcomes and import attributable conversions where "
+            "the platform and account support it."
+        )
+
+    elif not data.has_website:
+        tracking.append(
+            "Record lead outcomes in a CRM or structured sheet so ad-platform results "
+            "can be compared with real sales."
         )
 
     if objective == "sales":
@@ -797,9 +986,9 @@ def build_strategy(data):
                 "Send reliable conversion values before considering value-based bidding such as Target ROAS."
             )
 
-    if objective == "leads":
+    if objective in {"leads", "messages"}:
         tracking.append(
-            "Track lead quality and closed sales, not only form submissions."
+            "Track qualified results and closed sales, not only raw leads or conversations."
         )
 
     tracking.append(
@@ -823,9 +1012,25 @@ def build_strategy(data):
             "No clear offer was provided. The campaign needs a concrete reason for the customer to act."
         )
 
-    if target_cpa > 0 and daily_budget < target_cpa:
+    if (
+        target_metric > 0
+        and daily_budget < target_metric
+    ):
         risks.append(
-            "Daily budget is below the gross-margin planning CPA threshold, so learning may be slow and results may be noisy."
+            f"Daily budget is below the {target_metric_label} threshold, "
+            "so the campaign may generate fewer than one planned result per day "
+            "and learning may be slow or noisy."
+        )
+
+    if (
+        objective in {"leads", "messages"}
+        and data.price > 0
+        and data.gross_margin_percent > 0
+        and data.lead_to_sale_rate_percent <= 0
+    ):
+        risks.append(
+            "Lead/message-to-sale rate was not provided, so MarketFlow cannot "
+            "calculate a financially grounded cost-per-lead/conversation threshold."
         )
 
     website_channel = data.sales_channel.strip().lower() == "website"

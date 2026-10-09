@@ -70,13 +70,38 @@ export function strategyView(mode = "guided") {
 
           <div class="strategy-field-grid">
             <label>
-              Product / order price
+              Order / customer value
               <input name="price" type="number" min="0" step="0.01" placeholder="Optional">
             </label>
 
             <label>
               Gross margin %
               <input name="gross_margin_percent" type="number" min="0" max="100" step="0.1" placeholder="Optional">
+            </label>
+          </div>
+
+          <div class="strategy-field-grid">
+            <label>
+              Extra variable cost per sale
+              <input
+                name="extra_variable_cost_per_order"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Shipping, fees, returns allowance..."
+              >
+            </label>
+
+            <label>
+              Lead / message → sale rate %
+              <input
+                name="lead_to_sale_rate_percent"
+                type="number"
+                min="0"
+                max="100"
+                step="0.1"
+                placeholder="For leads/messages"
+              >
             </label>
           </div>
 
@@ -111,9 +136,9 @@ export function strategyView(mode = "guided") {
           </label>
 
           <p class="strategy-inline-note">
-            V2 still uses gross margin for planning. Before a real launch,
-            contribution margin should include shipping, payment fees,
-            returns, discounts and other variable costs.
+            MarketFlow now calculates contribution per sale after extra variable costs.
+            For Leads or Messages, add the real lead/message-to-sale rate so the engine
+            can calculate a financially grounded break-even CPL/conversation cost.
           </p>
         </section>
 
@@ -315,12 +340,28 @@ export function strategyResultView(response) {
       ${economics.available ? `
         <section class="strategy-card">
           <p class="review-kicker">BUSINESS ECONOMICS</p>
+
           <div class="strategy-metrics">
-            <div><small>Break-even CPA</small><strong>${economics.break_even_cpa} ${escapeHtml(economics.currency)}</strong></div>
-            <div><small>Planning CPA</small><strong>${economics.planning_target_cpa} ${escapeHtml(economics.currency)}</strong></div>
-            <div><small>Break-even ROAS</small><strong>${economics.break_even_roas}x</strong></div>
-            <div><small>Planning ROAS</small><strong>${economics.planning_target_roas}x</strong></div>
+            ${
+              (economics.cards || []).length
+                ? economics.cards.map(card => `
+                    <div>
+                      <small>${escapeHtml(card.label || "")}</small>
+                      <strong>
+                        ${escapeHtml(card.value ?? "")}
+                        ${escapeHtml(card.suffix || "")}
+                      </strong>
+                    </div>
+                  `).join("")
+                : `
+                    <div><small>Break-even CPA</small><strong>${economics.break_even_cpa} ${escapeHtml(economics.currency)}</strong></div>
+                    <div><small>Planning CPA</small><strong>${economics.planning_target_cpa} ${escapeHtml(economics.currency)}</strong></div>
+                    <div><small>Break-even ROAS</small><strong>${economics.break_even_roas}x</strong></div>
+                    <div><small>Planning ROAS</small><strong>${economics.planning_target_roas}x</strong></div>
+                  `
+            }
           </div>
+
           <p class="strategy-note">${escapeHtml(economics.note || "")}</p>
         </section>
       ` : `

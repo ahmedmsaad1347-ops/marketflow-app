@@ -222,6 +222,7 @@ export function strategyResultView(response) {
   const creative = strategy.creative_plan || {};
   const automation = strategy.automation_plan || {};
   const scorecard = strategy.channel_scorecard || [];
+  const profile = strategy.business_profile || creative.business_profile || {};
 
   const list = items =>
     (items || []).length
@@ -294,7 +295,7 @@ export function strategyResultView(response) {
     <section class="page strategy-result-page">
       <button data-strategy-start="guided" class="back-button">← Adjust answers</button>
 
-      <p class="review-kicker">MARKETFLOW STRATEGY ENGINE V2</p>
+      <p class="review-kicker">MARKETFLOW STRATEGY ENGINE V3</p>
 
       <section class="strategy-recommendation-hero">
         <span>RECOMMENDED CAMPAIGN</span>
@@ -313,6 +314,22 @@ export function strategyResultView(response) {
       </section>
 
       <p class="subtitle">${escapeHtml(strategy.disclaimer || "")}</p>
+
+      <section class="strategy-card">
+        <p class="review-kicker">BUSINESS UNDERSTANDING</p>
+        <div class="strategy-decision-card">
+          <div><small>Business type</small><strong>${escapeHtml(profile.vertical || "")}</strong></div>
+          <div><small>Buyer</small><strong>${escapeHtml(profile.buyer_type || "")}</strong></div>
+          <div><small>Revenue model</small><strong>${escapeHtml(profile.revenue_model || "")}</strong></div>
+          <div><small>Purchase cycle</small><strong>${escapeHtml(profile.purchase_cycle || "")}</strong></div>
+          <div><small>Demand motion</small><strong>${escapeHtml(profile.demand_motion || "")}</strong></div>
+          <div><small>Conversion</small><strong>${escapeHtml(profile.conversion_type || "")}</strong></div>
+        </div>
+        <p class="strategy-note">
+          ${escapeHtml(profile.acquisition_strategy || "")}
+          ${profile.confidence ? " · Understanding confidence: " + escapeHtml(profile.confidence) : ""}
+        </p>
+      </section>
 
       <section class="strategy-decision-card">
         <div><small>Platform</small><strong>${escapeHtml(strategy.recommended_platform || "")}</strong></div>
@@ -412,62 +429,110 @@ export function strategyResultView(response) {
       </section>
 
       <section class="strategy-card creative-engine-card">
-        <p class="review-kicker">CREATIVE ENGINE V1</p>
-        <h2>Ready-to-edit campaign drafts</h2>
+        <p class="review-kicker">CREATIVE ENGINE V1.2</p>
+        <h2>Platform-ready campaign drafts</h2>
         <p class="strategy-note">
-          MarketFlow generated these from the strategy inputs. Review facts and brand voice before publishing.
+          MarketFlow adapts the creative output to the selected campaign type.
+          Review facts and brand voice before publishing.
         </p>
 
-        <h3>Hooks</h3>
-        <div class="creative-draft-grid">
-          ${creativeCards(creative.hooks)}
-        </div>
-
-        <h3>Headlines</h3>
-        <div class="creative-tags creative-tags-large">
-          ${(creative.headlines || [])
-            .map(item => `<span>${escapeHtml(item)}</span>`)
-            .join("")}
-        </div>
-
-        <h3>Primary ad copy</h3>
-        <div class="creative-draft-grid">
-          ${creativeCards(creative.primary_texts)}
-        </div>
-
-        ${(creative.descriptions || []).length ? `
-          <h3>Descriptions</h3>
-          <div class="creative-draft-grid">
-            ${creativeCards(creative.descriptions)}
+        ${creative.business_context ? `
+          <div class="creative-match-plan">
+            <strong>${escapeHtml(creative.business_context.vertical || "")}</strong>
+            · ${escapeHtml(creative.business_context.subject || "")}
+            · ${escapeHtml(creative.business_context.location || "")}
           </div>
         ` : ""}
 
-        ${(creative.keyword_themes || []).length ? `
-          <section class="creative-search-pack">
-            <p class="review-kicker">SEARCH PACK</p>
+        ${creative.policy_note ? `
+          <div class="creative-safety-note">
+            <strong>Targeting policy check</strong>
+            <p>${escapeHtml(creative.policy_note)}</p>
+          </div>
+        ` : ""}
 
-            <h3>Keyword themes</h3>
-            <div class="creative-tags creative-tags-large">
-              ${(creative.keyword_themes || [])
-                .map(item => `<span>${escapeHtml(item)}</span>`)
-                .join("")}
+        ${creative.search_pack ? `
+          <section class="creative-search-pack">
+            <p class="review-kicker">GOOGLE SEARCH AD PACK</p>
+
+            <h3>RSA headlines</h3>
+            <div class="creative-asset-list">
+              ${(creative.search_pack.headlines || []).map(item => `
+                <div class="creative-asset-row">
+                  <span>${escapeHtml(item)}</span>
+                  <small>${String(item).length}/${creative.search_pack.headline_limit || 30}</small>
+                </div>
+              `).join("")}
+            </div>
+
+            <h3>RSA descriptions</h3>
+            <div class="creative-asset-list">
+              ${(creative.search_pack.descriptions || []).map(item => `
+                <div class="creative-asset-row">
+                  <span>${escapeHtml(item)}</span>
+                  <small>${String(item).length}/${creative.search_pack.description_limit || 90}</small>
+                </div>
+              `).join("")}
+            </div>
+
+            <h3>Keyword groups</h3>
+            <div class="creative-keyword-groups">
+              ${Object.entries(creative.search_pack.keyword_groups || {}).map(([name, items]) => `
+                <article>
+                  <strong>${escapeHtml(name)}</strong>
+                  <div class="creative-tags">
+                    ${(items || []).map(item => `<span>${escapeHtml(item)}</span>`).join("")}
+                  </div>
+                </article>
+              `).join("")}
+            </div>
+
+            <h3>Match-type plan</h3>
+            <div class="creative-match-plan">
+              ${escapeHtml(creative.search_pack.match_type_plan || "")}
             </div>
 
             <h3>Negative keyword ideas — review before applying</h3>
             <div class="creative-tags">
-              ${(creative.negative_keyword_ideas || [])
+              ${(creative.search_pack.negative_keyword_ideas || [])
                 .map(item => `<span>${escapeHtml(item)}</span>`)
                 .join("")}
             </div>
           </section>
-        ` : ""}
-
-        ${videoScripts ? `
-          <h3>Video concepts</h3>
-          <div class="creative-script-grid">
-            ${videoScripts}
+        ` : `
+          <h3>Hooks</h3>
+          <div class="creative-draft-grid">
+            ${creativeCards(creative.hooks)}
           </div>
-        ` : ""}
+
+          <h3>Headlines</h3>
+          <div class="creative-tags creative-tags-large">
+            ${(creative.headlines || [])
+              .map(item => `<span>${escapeHtml(item)}</span>`)
+              .join("")}
+          </div>
+
+          ${(creative.primary_texts || []).length ? `
+            <h3>Primary ad copy</h3>
+            <div class="creative-draft-grid">
+              ${creativeCards(creative.primary_texts)}
+            </div>
+          ` : ""}
+
+          ${(creative.descriptions || []).length ? `
+            <h3>Descriptions</h3>
+            <div class="creative-draft-grid">
+              ${creativeCards(creative.descriptions)}
+            </div>
+          ` : ""}
+
+          ${videoScripts ? `
+            <h3>Video concepts</h3>
+            <div class="creative-script-grid">
+              ${videoScripts}
+            </div>
+          ` : ""}
+        `}
 
         <h3>Strategic angles</h3>
         <div class="strategy-angle-grid">${angles}</div>

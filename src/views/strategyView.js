@@ -235,6 +235,41 @@ export function strategyResultView(response) {
     </article>
   `).join("");
 
+  const creativeCards = items =>
+    (items || []).length
+      ? items.map(item => `
+          <article class="creative-draft-card">
+            <p>${escapeHtml(item)}</p>
+          </article>
+        `).join("")
+      : "";
+
+  const videoScripts = (creative.video_scripts || []).map(script => `
+    <article class="creative-script-card">
+      <small>VIDEO CONCEPT</small>
+      <h3>${escapeHtml(script.name || "")}</h3>
+
+      <div class="creative-script-hook">
+        <span>Hook</span>
+        <strong>${escapeHtml(script.hook || "")}</strong>
+      </div>
+
+      <ol>
+        ${(script.shots || [])
+          .map(shot => `<li>${escapeHtml(shot)}</li>`)
+          .join("")}
+      </ol>
+
+      ${(script.on_screen_text || []).length ? `
+        <div class="creative-tags">
+          ${(script.on_screen_text || [])
+            .map(item => `<span>${escapeHtml(item)}</span>`)
+            .join("")}
+        </div>
+      ` : ""}
+    </article>
+  `).join("");
+
   const scores = scorecard.map(item => `
     <article class="strategy-score-row ${item.eligible ? "" : "not-eligible"}">
       <div class="strategy-score-head">
@@ -376,14 +411,78 @@ export function strategyResultView(response) {
         <ul class="strategy-list">${list(strategy.audience_plan)}</ul>
       </section>
 
-      <section class="strategy-card">
-        <p class="review-kicker">CREATIVE PLAN</p>
+      <section class="strategy-card creative-engine-card">
+        <p class="review-kicker">CREATIVE ENGINE V1</p>
+        <h2>Ready-to-edit campaign drafts</h2>
+        <p class="strategy-note">
+          MarketFlow generated these from the strategy inputs. Review facts and brand voice before publishing.
+        </p>
+
+        <h3>Hooks</h3>
+        <div class="creative-draft-grid">
+          ${creativeCards(creative.hooks)}
+        </div>
+
+        <h3>Headlines</h3>
+        <div class="creative-tags creative-tags-large">
+          ${(creative.headlines || [])
+            .map(item => `<span>${escapeHtml(item)}</span>`)
+            .join("")}
+        </div>
+
+        <h3>Primary ad copy</h3>
+        <div class="creative-draft-grid">
+          ${creativeCards(creative.primary_texts)}
+        </div>
+
+        ${(creative.descriptions || []).length ? `
+          <h3>Descriptions</h3>
+          <div class="creative-draft-grid">
+            ${creativeCards(creative.descriptions)}
+          </div>
+        ` : ""}
+
+        ${(creative.keyword_themes || []).length ? `
+          <section class="creative-search-pack">
+            <p class="review-kicker">SEARCH PACK</p>
+
+            <h3>Keyword themes</h3>
+            <div class="creative-tags creative-tags-large">
+              ${(creative.keyword_themes || [])
+                .map(item => `<span>${escapeHtml(item)}</span>`)
+                .join("")}
+            </div>
+
+            <h3>Negative keyword ideas — review before applying</h3>
+            <div class="creative-tags">
+              ${(creative.negative_keyword_ideas || [])
+                .map(item => `<span>${escapeHtml(item)}</span>`)
+                .join("")}
+            </div>
+          </section>
+        ` : ""}
+
+        ${videoScripts ? `
+          <h3>Video concepts</h3>
+          <div class="creative-script-grid">
+            ${videoScripts}
+          </div>
+        ` : ""}
+
+        <h3>Strategic angles</h3>
         <div class="strategy-angle-grid">${angles}</div>
 
         <h3>Platform requirements</h3>
         <ul class="strategy-list">${list(creative.formats)}</ul>
 
         <p><strong>CTA:</strong> ${escapeHtml(creative.cta || "")}</p>
+
+        ${creative.safety_note ? `
+          <div class="creative-safety-note">
+            <strong>Before publishing</strong>
+            <p>${escapeHtml(creative.safety_note)}</p>
+          </div>
+        ` : ""}
       </section>
 
       <section class="strategy-card">

@@ -19,3 +19,6 @@ marketflow_navigation_last_strategy_installer.py
 
 .strategy_v21_backup_*/
 marketflow_strategy_v21_economics_installer.py
+
+.creative_v1_backup_*/
+marketflow_creative_engine_v1_installer.py

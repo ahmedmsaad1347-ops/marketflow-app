@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 
 CAPABILITY_SNAPSHOT = "2026-10-09"
-ENGINE_VERSION = "strategy-v2.1-economics-2026-10"
+ENGINE_VERSION = "strategy-v2.2-creative-2026-10"
 
 
 class StrategyRequest(BaseModel):
@@ -592,43 +592,227 @@ def _creative_plan(data, candidate):
     provider = candidate["provider"]
     campaign_type = candidate["campaign_type"]
 
+    business = data.business_name.strip()
+    product = data.product.strip()
+    audience = data.audience.strip()
+    country = data.country.strip()
+    offer = data.offer.strip()
+    objective = data.objective.strip().lower()
+
+    cta = {
+        "awareness": "Learn More",
+        "traffic": "Learn More",
+        "messages": "Send Message",
+        "leads": "Get Quote",
+        "sales": "Shop Now",
+    }.get(objective, "Learn More")
+
+    offer_line = (
+        offer
+        if offer
+        else "Ask about availability, pricing and the next step."
+    )
+
     angles = [
         {
             "name": "Problem → Solution",
             "idea": (
-                f"Show the problem faced by {data.audience.strip()}, then demonstrate how "
-                f"{data.product.strip()} solves it."
+                f"Show the real situation faced by {audience}, then demonstrate "
+                f"how {product} helps without making unverified claims."
             ),
         },
         {
             "name": "Proof",
             "idea": (
-                "Use real demonstrations, customer proof, or evidence that can be substantiated. "
-                "Avoid invented claims."
+                "Use real demonstrations, real customer proof, credentials, process evidence "
+                "or other facts that can be substantiated."
             ),
         },
         {
             "name": "Offer",
-            "idea": (
-                data.offer.strip()
-                if data.offer.strip()
-                else "Make the value and next step clear, then strengthen the offer before scaling spend."
-            ),
+            "idea": offer_line,
         },
     ]
 
-    if provider == "Meta":
+    hooks = [
+        f"Looking for {product} in {country}?",
+        f"Need a clear next step for {product}?",
+        f"Before you choose {product}, check what actually matters.",
+        f"{business}: a practical way to get started with {product}.",
+        (
+            f"{offer} — here is what to know before you act."
+            if offer
+            else f"Considering {product}? Start with the facts that matter."
+        ),
+    ]
+
+    headlines = [
+        business,
+        product,
+        f"{product} in {country}",
+        f"Get Started With {business}",
+        f"Ask About {product}",
+        cta,
+    ]
+
+    if offer:
+        headlines.insert(3, offer)
+
+    primary_texts = [
+        (
+            f"{business} offers {product} for {audience}. "
+            f"{offer_line} {cta}."
+        ),
+        (
+            f"Looking for {product} in {country}? "
+            f"See the details, understand the next step, and decide whether "
+            f"{business} is the right fit. {cta}."
+        ),
+        (
+            f"Start with the problem, show the real process, and use proof that can be verified. "
+            f"{offer_line} {cta}."
+        ),
+    ]
+
+    descriptions = [
+        (
+            f"{business} offers {product}. {offer_line} "
+            f"Get the information you need before taking the next step."
+        ),
+        (
+            f"For {audience}. Check availability, details and the next step with {business}."
+        ),
+    ]
+
+    keyword_themes = []
+    negative_keyword_ideas = []
+    video_scripts = []
+
+    if campaign_type == "Google Search":
+        keyword_themes = [
+            product,
+            f"{product} {country}",
+            f"{product} near me",
+            f"{product} quote",
+            f"{product} price",
+            business,
+        ]
+
+        negative_keyword_ideas = [
+            "jobs",
+            "careers",
+            "salary",
+            "course",
+            "training",
+            "diy",
+            "free",
+            "definition",
+        ]
+
+        formats = [
+            "Build responsive search ads with genuinely different headlines and descriptions.",
+            "Match the ad language tightly to the search intent and landing page.",
+            "Use proof, offer and qualification language instead of generic brand copy.",
+        ]
+
+    elif provider == "Meta":
         formats = [
             "Prioritize 9:16 vertical video with audio and key messages inside the safe zone for Reels-ready creative.",
             "Keep multiple creative angles live instead of relying on one ad.",
             "Use static/carousel support assets when they add useful product or proof detail.",
         ]
 
+        video_scripts = [
+            {
+                "name": "Problem → Solution video",
+                "hook": hooks[1],
+                "shots": [
+                    "Show the real customer situation/problem in the first seconds.",
+                    f"Show {product} being used or delivered.",
+                    "Show real proof: process, result evidence, review, credential or demonstration.",
+                    f"Finish with the offer/next step: {offer_line}",
+                ],
+                "on_screen_text": [
+                    product,
+                    offer_line,
+                    cta,
+                ],
+            },
+            {
+                "name": "Proof-first video",
+                "hook": f"What should you check before choosing {product}?",
+                "shots": [
+                    "Open with the most important buying criterion.",
+                    "Show real evidence for how the business handles that criterion.",
+                    "Add one or two substantiated proof points.",
+                    f"Close with {cta}.",
+                ],
+                "on_screen_text": [
+                    "What to check",
+                    "Real proof",
+                    cta,
+                ],
+            },
+            {
+                "name": "Offer-led video",
+                "hook": (
+                    offer
+                    if offer
+                    else f"Need {product}? Here is the next step."
+                ),
+                "shots": [
+                    "State the offer or reason to act clearly.",
+                    "Show who it is for.",
+                    "Show the product/service and the buying process.",
+                    f"End with {cta}.",
+                ],
+                "on_screen_text": [
+                    offer_line,
+                    product,
+                    cta,
+                ],
+            },
+        ]
+
     elif campaign_type == "TikTok Search Ads Campaign":
         formats = [
-            "Use search-intent creative that directly matches keyword intent.",
-            "Prepare video or carousel assets aligned with TikTok Search ad formats.",
-            "Keep landing-page message match tight between keyword, creative and destination.",
+            "Use search-intent creative that directly matches the keyword/query intent.",
+            "Prepare video or carousel assets aligned with the search ad workflow.",
+            "Keep keyword, creative and landing-page message tightly aligned.",
+        ]
+
+        keyword_themes = [
+            product,
+            f"{product} {country}",
+            f"{product} near me",
+            f"{product} price",
+            business,
+        ]
+
+        negative_keyword_ideas = [
+            "jobs",
+            "careers",
+            "course",
+            "training",
+            "free",
+        ]
+
+        video_scripts = [
+            {
+                "name": "Search answer video",
+                "hook": f"Searching for {product}?",
+                "shots": [
+                    "Answer the search intent immediately.",
+                    f"Show what {business} actually offers.",
+                    "Show verifiable proof or process evidence.",
+                    f"Close with {cta}.",
+                ],
+                "on_screen_text": [
+                    product,
+                    offer_line,
+                    cta,
+                ],
+            },
         ]
 
     elif provider == "TikTok":
@@ -638,11 +822,37 @@ def _creative_plan(data, candidate):
             "Use captions/on-screen text so the message works in fast-scroll viewing.",
         ]
 
-    elif campaign_type == "Google Search":
-        formats = [
-            "Build responsive search ads with distinct, non-duplicative headlines and descriptions.",
-            "Match ad language tightly to the search intent and landing page.",
-            "Use proof, offer and qualification language instead of generic brand copy.",
+        video_scripts = [
+            {
+                "name": "Native problem/solution",
+                "hook": hooks[1],
+                "shots": [
+                    "Open on the real problem, not a logo screen.",
+                    f"Show {product} in action.",
+                    "Use a real demonstration or proof point.",
+                    f"End with {cta}.",
+                ],
+                "on_screen_text": [
+                    hooks[1],
+                    offer_line,
+                    cta,
+                ],
+            },
+            {
+                "name": "Checklist / education",
+                "hook": f"3 things to check before choosing {product}",
+                "shots": [
+                    "Show criterion 1 with a real example.",
+                    "Show criterion 2 with a real example.",
+                    "Show criterion 3 with a real example.",
+                    f"Close with {business} and {cta}.",
+                ],
+                "on_screen_text": [
+                    "3 things to check",
+                    product,
+                    cta,
+                ],
+            },
         ]
 
     elif campaign_type == "Demand Gen":
@@ -652,6 +862,24 @@ def _creative_plan(data, candidate):
             "Keep creative variations broad enough for YouTube, Discover, Gmail, Maps and GDN placements.",
         ]
 
+        video_scripts = [
+            {
+                "name": "Discovery story",
+                "hook": hooks[2],
+                "shots": [
+                    "Open with the customer situation.",
+                    f"Introduce {product} naturally.",
+                    "Show real product/service detail and proof.",
+                    f"Close with {cta}.",
+                ],
+                "on_screen_text": [
+                    product,
+                    offer_line,
+                    cta,
+                ],
+            },
+        ]
+
     else:
         formats = [
             "Prepare diverse image and video assets for automated asset testing.",
@@ -659,9 +887,40 @@ def _creative_plan(data, candidate):
             "Use real brand assets and avoid invented performance claims.",
         ]
 
+        video_scripts = [
+            {
+                "name": "Core product/service story",
+                "hook": hooks[0],
+                "shots": [
+                    "Show the customer situation.",
+                    f"Show {product}.",
+                    "Show real proof or process evidence.",
+                    f"Close with {cta}.",
+                ],
+                "on_screen_text": [
+                    product,
+                    offer_line,
+                    cta,
+                ],
+            },
+        ]
+
     return {
         "angles": angles,
         "formats": formats,
+        "hooks": hooks,
+        "headlines": headlines,
+        "primary_texts": primary_texts,
+        "descriptions": descriptions,
+        "keyword_themes": keyword_themes,
+        "negative_keyword_ideas": negative_keyword_ideas,
+        "video_scripts": video_scripts,
+        "cta": cta,
+        "safety_note": (
+            "These are campaign drafts, not verified factual claims. "
+            "Only publish prices, guarantees, credentials, testimonials, results or availability "
+            "that the business can substantiate."
+        ),
     }
 
 

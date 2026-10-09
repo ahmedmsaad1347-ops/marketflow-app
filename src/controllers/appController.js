@@ -3,6 +3,8 @@ import {
   logoutUser,
   updateProfile,
   changePassword,
+  generateStrategy,
+  acceptStrategy,
   getDashboardOverview,
   getNotifications,
   markNotificationRead,
@@ -36,9 +38,16 @@ import {
   renderAnalyticsCharts
 } from "../services/analyticsCharts.js";
 
+import {
+  strategyView,
+  strategyResultView
+} from "../views/strategyView.js";
+
 const app = document.querySelector("#app");
 
 let currentUser = null;
+
+let strategyMode = "guided";
 
 let campaignFilters = {
   status: "All",
@@ -92,6 +101,11 @@ async function showPage(page) {
 
       pageContent.innerHTML =
         dashboardView(response);
+    }
+
+    if (page === "strategy") {
+      pageContent.innerHTML =
+        strategyView(strategyMode);
     }
 
     if (page === "campaigns") {
@@ -164,6 +178,9 @@ async function showPage(page) {
     setActiveNavigation(page);
 
     attachNavigation();
+    attachStrategyLaunchers();
+    attachStrategyWizard();
+    attachStrategyResultActions();
     attachCampaignForm();
     attachCampaignDelete();
     attachCampaignReview();
@@ -194,6 +211,165 @@ async function showPage(page) {
     `;
   }
 }
+
+
+function attachStrategyLaunchers() {
+  document
+    .querySelectorAll("[data-strategy-start]")
+    .forEach(button => {
+      button.onclick = () => {
+        strategyMode = button.dataset.strategyStart || "guided";
+        showPage("strategy");
+      };
+    });
+}
+
+
+function attachStrategyWizard() {
+  const form = document.querySelector("#strategyForm");
+  if (!form) return;
+
+  const guided = form.dataset.strategyMode === "guided";
+  let step = 1;
+  const totalSteps = 4;
+
+  const renderStep = () => {
+    if (!guided) return;
+
+    form.querySelectorAll("[data-strategy-step]").forEach(section => {
+      section.hidden = Number(section.dataset.strategyStep) !== step;
+    });
+
+    const text = document.querySelector("#strategyProgressText");
+    const bar = document.querySelector("#strategyProgressBar");
+    const back = document.querySelector("#strategyBack");
+    const next = document.querySelector("#strategyNext");
+    const generate = document.querySelector("#strategyGenerate");
+
+    if (text) text.textContent = `Step ${step} of ${totalSteps}`;
+    if (bar) bar.style.width = `${(step / totalSteps) * 100}%`;
+    if (back) back.hidden = step === 1;
+    if (next) next.hidden = step === totalSteps;
+    if (generate) generate.hidden = step !== totalSteps;
+  };
+
+  const validateCurrentStep = () => {
+    const current = form.querySelector(`[data-strategy-step="${step}"]`);
+    if (!current) return true;
+
+    const fields = [...current.querySelectorAll("input, select, textarea")];
+    for (const field of fields) {
+      if (!field.checkValidity()) {
+        field.reportValidity();
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const next = document.querySelector("#strategyNext");
+  const back = document.querySelector("#strategyBack");
+
+  if (next) {
+    next.onclick = () => {
+      if (!validateCurrentStep()) return;
+      step = Math.min(totalSteps, step + 1);
+      renderStep();
+      window.scrollTo(0, 0);
+    };
+  }
+
+  if (back) {
+    back.onclick = () => {
+      step = Math.max(1, step - 1);
+      renderStep();
+      window.scrollTo(0, 0);
+    };
+  }
+
+  form.onsubmit = async event => {
+    event.preventDefault();
+    if (guided && !validateCurrentStep()) return;
+
+    const button = document.querySelector("#strategyGenerate");
+    const data = new FormData(form);
+    const numberOrZero = name => Number(data.get(name) || 0);
+
+    const payload = {
+      mode: form.dataset.strategyMode,
+      business_name: data.get("business_name"),
+      product: data.get("product"),
+      offer: data.get("offer") || "",
+      country: data.get("country"),
+      audience: data.get("audience"),
+      objective: data.get("objective"),
+      demand_type: data.get("demand_type"),
+      sales_channel: data.get("sales_channel"),
+      currency: data.get("currency"),
+      total_budget: numberOrZero("total_budget"),
+      campaign_days: Number(data.get("campaign_days") || 30),
+      price: numberOrZero("price"),
+      gross_margin_percent: numberOrZero("gross_margin_percent"),
+      has_website: data.get("has_website") === "on",
+      has_tracking: data.get("has_tracking") === "on",
+      has_previous_sales: data.get("has_previous_sales") === "on",
+      has_video_creatives: data.get("has_video_creatives") === "on",
+      notes: data.get("notes") || ""
+    };
+
+    if (button) {
+      button.disabled = true;
+      button.textContent = "Building your strategy...";
+    }
+
+    try {
+      const response = await generateStrategy(payload);
+      const pageContent = document.querySelector("#pageContent");
+      pageContent.innerHTML = strategyResultView(response);
+
+      setActiveNavigation("strategy");
+      attachNavigation();
+      attachStrategyLaunchers();
+      attachStrategyResultActions();
+      window.scrollTo(0, 0);
+    } catch (error) {
+      alert("Strategy could not be generated.\n\n" + error.message);
+      if (button) {
+        button.disabled = false;
+        button.textContent = "Build My Strategy";
+      }
+    }
+  };
+
+  renderStep();
+}
+
+
+function attachStrategyResultActions() {
+  const button = document.querySelector("#acceptStrategyBtn");
+  if (!button) return;
+
+  button.onclick = async () => {
+    const id = button.dataset.strategyId;
+    button.disabled = true;
+    button.textContent = "Creating campaign draft...";
+
+    try {
+      const response = await acceptStrategy(id);
+      if (!response.campaign) {
+        throw new Error("Campaign draft was not returned");
+      }
+
+      await showCampaignReview(response.campaign.id);
+      await refreshNotificationBadge();
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = "Accept Strategy & Create Draft";
+      alert(error.message);
+    }
+  };
+}
+
 
 function attachAnalyticsFilters() {
   document

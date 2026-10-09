@@ -1,5 +1,6 @@
 import "./styles/main.css";
 import "./styles/landing.css";
+import "./styles/strategy.css";
 
 import { startApp } from "./controllers/appController.js";
 import { landingView } from "./views/landingView.js";

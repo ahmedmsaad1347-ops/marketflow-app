@@ -197,6 +197,30 @@ export function dashboardView(data = {}) {
   return `
     <section class="page">
 
+      <section class="strategy-engine-hero">
+        <div class="strategy-engine-badge">✦ MARKETFLOW STRATEGY ENGINE</div>
+
+        <h1>
+          Not sure what campaign to run?
+          <span>MarketFlow will build the plan with you.</span>
+        </h1>
+
+        <p>
+          Answer a few business questions. MarketFlow will recommend the objective,
+          channel, budget logic, audience, creative plan, tracking checklist and first test —
+          then create the campaign draft for you.
+        </p>
+
+        <div class="strategy-engine-actions">
+          <button data-strategy-start="guided" class="strategy-primary">Guide Me</button>
+          <button data-strategy-start="quick" class="strategy-secondary">I Know What I Want</button>
+        </div>
+
+        <small>
+          Recommendations are based on your inputs and business economics. Performance is never guaranteed.
+        </small>
+      </section>
+
       <div class="hero">
         <p>Welcome back 👋</p>
 

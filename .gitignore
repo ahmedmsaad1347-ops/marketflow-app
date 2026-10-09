@@ -5,3 +5,6 @@ dist/
 __pycache__/
 *.pyc
 marketflow.db
+
+.strategy_mvp_backup_*/
+marketflow_strategy_engine_mvp_installer.py

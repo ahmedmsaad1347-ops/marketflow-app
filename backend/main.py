@@ -3099,3 +3099,8 @@ def root():
         "name": "MarketFlow Backend",
         "status": "running"
     }
+
+
+# MarketFlow Strategy Engine MVP
+from backend.strategy_engine import register_strategy_engine
+register_strategy_engine(app, get_db, get_current_user)

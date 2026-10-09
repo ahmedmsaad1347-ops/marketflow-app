@@ -185,3 +185,21 @@ export function changePassword(data) {
     }
   );
 }
+
+
+export function generateStrategy(data) {
+  return request("/api/strategy/generate", {
+    method: "POST",
+    body: JSON.stringify(data)
+  });
+}
+
+export function getLatestStrategy() {
+  return request("/api/strategy/latest");
+}
+
+export function acceptStrategy(id) {
+  return request(`/api/strategy/${id}/accept`, {
+    method: "POST"
+  });
+}

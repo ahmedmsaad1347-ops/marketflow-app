@@ -3104,3 +3104,7 @@ def root():
 # MarketFlow Strategy Engine MVP
 from backend.strategy_engine import register_strategy_engine
 register_strategy_engine(app, get_db, get_current_user)
+
+# MarketFlow built-in Strategy Agent V1
+from backend.strategy_agent import register_strategy_agent
+register_strategy_agent(app, get_db, get_current_user)

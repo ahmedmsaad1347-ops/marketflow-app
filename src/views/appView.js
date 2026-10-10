@@ -215,6 +215,7 @@ export function dashboardView(data = {}) {
           <button data-strategy-start="guided" class="strategy-primary">Guide Me</button>
           <button data-strategy-start="quick" class="strategy-secondary">I Know What I Want</button>
           <button data-strategy-last class="strategy-secondary">View Last Strategy</button>
+          <button data-page="strategy-history" class="strategy-secondary">Strategy History</button>
         </div>
 
         <small>
@@ -833,35 +834,36 @@ export function messagesView() {
 
 export function aiView() {
   return `
-    <section class="page">
-
-      <h1>AI Agent</h1>
-
+    <section class="page strategy-agent-page">
+      <p class="review-kicker">MARKETFLOW STRATEGY AGENT V1</p>
+      <h1>Your built-in marketing strategist</h1>
       <p class="subtitle">
-        Your marketing assistant.
+        No external AI API. The agent uses MarketFlow business understanding,
+        economics and campaign rules to question the brief and choose the strategy.
       </p>
 
-      <div class="ai-card">
-
-        <div class="ai-status">
+      <section class="strategy-agent-card">
+        <div class="strategy-agent-status">
           <span class="status-dot"></span>
-          AI Agent Ready
+          Built-in decision agent
         </div>
 
-        <h2>
-          What should we market today?
-        </h2>
+        <div id="strategyAgentChat" class="strategy-agent-chat">
+          <article class="agent-bubble">
+            <strong>MarketFlow Agent</strong>
+            <p>
+              I will ask only the questions that affect the marketing decision,
+              then choose the primary campaign and explain the plan.
+            </p>
+          </article>
+        </div>
 
-        <textarea
-          placeholder="Example: Create a campaign for my clothing store..."
-        ></textarea>
-
-        <button class="primary-action">
-          Generate with AI
-        </button>
-
-      </div>
-
+        <div id="strategyAgentComposer" class="strategy-agent-composer">
+          <button id="startStrategyAgentBtn" class="primary-action">
+            Start Strategy Agent
+          </button>
+        </div>
+      </section>
     </section>
   `;
 }

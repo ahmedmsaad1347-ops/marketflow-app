@@ -198,8 +198,28 @@ export function getLatestStrategy() {
   return request("/api/strategy/latest");
 }
 
+export function getStrategies(limit = 50) {
+  return request(`/api/strategy?limit=${limit}`);
+}
+
+export function getStrategy(id) {
+  return request(`/api/strategy/${id}`);
+}
+
 export function acceptStrategy(id) {
   return request(`/api/strategy/${id}/accept`, {
     method: "POST"
+  });
+}
+
+
+export function startStrategyAgent() {
+  return request("/api/strategy-agent/start", { method: "POST" });
+}
+
+export function answerStrategyAgent(sessionId, value) {
+  return request(`/api/strategy-agent/${sessionId}/answer`, {
+    method: "POST",
+    body: JSON.stringify({ value })
   });
 }

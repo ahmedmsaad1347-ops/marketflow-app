@@ -22,3 +22,10 @@ marketflow_strategy_v21_economics_installer.py
 
 .creative_v1_backup_*/
 marketflow_creative_engine_v1_installer.py
+
+# MarketFlow local installers / backups
+.marketflow_v31_backup_*/
+.strategy_agent_v1_backup_*/
+marketflow_v31_creative_v13_strategy_history.py
+marketflow_strategy_agent_v1_installer.py
+marketflow_strategy_agent_import_fix.py

@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 
 CAPABILITY_SNAPSHOT = "2026-10-09"
-ENGINE_VERSION = "strategy-v3-business-understanding-2026-10"
+ENGINE_VERSION = "strategy-v3.1-business-identity-creative-v1.3-2026-10"
 
 
 class StrategyRequest(BaseModel):
@@ -124,71 +124,42 @@ def _candidate(
 
 
 def _business_profile(data):
-    text = " ".join([
-        data.business_name,
-        data.product,
-        data.offer,
-        data.audience,
-        data.notes,
-    ]).lower()
-
-    vertical_terms = {
-        "real_estate": ["real estate", "property", "properties", "apartment", "apartments", "villa", "villas", "townhouse", "compound", "residential", "developer"],
-        "ecommerce": ["ecommerce", "e-commerce", "online store", "shop", "clothing", "fashion", "shoes", "cosmetics", "skincare", "electronics", "jewelry", "accessories"],
-        "saas": ["saas", "software", "platform", "subscription", "crm", "automation software", "cloud software"],
-        "education": ["course", "courses", "academy", "school", "university", "training", "tutoring", "education", "bootcamp"],
-        "healthcare": ["clinic", "doctor", "medical", "dental", "dentist", "healthcare", "hospital", "physio", "therapy"],
-        "hospitality": ["hotel", "resort", "travel", "tour", "booking", "vacation", "holiday", "hospitality"],
-        "restaurant": ["restaurant", "cafe", "coffee", "food", "meal", "pizza", "burger", "bakery"],
-        "local_service": ["plumbing", "plumber", "electrician", "cleaning", "repair", "maintenance", "painting", "moving", "pest control", "landscaping", "salon", "barber", "home service"],
-        "professional_service": ["consulting", "consultant", "agency", "law firm", "lawyer", "accounting", "accountant", "architect", "design studio", "marketing agency", "business service"],
-        "automotive": ["car", "cars", "automotive", "vehicle", "garage", "auto repair", "dealership"],
-    }
-
-    vertical = "general"
-    best_hits = []
-
-    for candidate, terms in vertical_terms.items():
-        hits = [term for term in terms if term in text]
-        if len(hits) > len(best_hits):
-            vertical = candidate
-            best_hits = hits
-
+    vertical_key = _infer_business_vertical(data)
+    target_industry = _infer_target_industry(data)
     audience = data.audience.lower()
-    b2b_terms = ["business", "businesses", "company", "companies", "enterprise", "brands", "teams", "founders", "managers", "professionals"]
-    b2c_terms = ["families", "homeowners", "renters", "shoppers", "students", "patients", "customers", "parents", "individuals", "people"]
 
-    has_b2b = any(term in audience for term in b2b_terms)
-    has_b2c = any(term in audience for term in b2c_terms)
+    b2b_terms = ["business", "businesses", "company", "companies", "enterprise", "teams", "owners", "managers", "founders", "professionals"]
+    b2c_terms = ["families", "homeowners", "renters", "shoppers", "students", "patients", "customers", "parents", "individuals", "consumers"]
 
+    has_b2b = any(x in audience for x in b2b_terms)
+    has_b2c = any(x in audience for x in b2c_terms)
     if has_b2b and has_b2c:
         buyer_type = "B2B + B2C"
-    elif has_b2b:
+    elif has_b2b or vertical_key == "saas":
         buyer_type = "B2B"
     else:
         buyer_type = "B2C"
 
-    if vertical == "saas" or "subscription" in text or "membership" in text:
+    if vertical_key == "saas":
+        product_type = "Software / SaaS"
         revenue_model = "Subscription / recurring"
-    elif vertical in {"professional_service", "local_service", "healthcare"}:
-        revenue_model = "Service / appointment"
-    elif vertical == "real_estate":
-        revenue_model = "High-value deal"
-    elif vertical == "education":
-        revenue_model = "Enrollment / program"
-    elif vertical == "hospitality":
-        revenue_model = "Booking"
-    elif vertical == "restaurant":
-        revenue_model = "Order / visit"
-    else:
-        revenue_model = "Transaction / sale"
-
-    if vertical in {"real_estate", "professional_service"} or buyer_type == "B2B":
-        purchase_cycle = "Long / considered"
-    elif vertical in {"saas", "education", "healthcare", "automotive"}:
         purchase_cycle = "Medium / considered"
-    else:
+    elif vertical_key == "real_estate":
+        product_type = "Property"
+        revenue_model = "High-value deal"
+        purchase_cycle = "Long / considered"
+    elif vertical_key == "local_service":
+        product_type = "Service"
+        revenue_model = "Service / appointment"
         purchase_cycle = "Short / moderate"
+    elif vertical_key == "ecommerce":
+        product_type = "Physical / retail product"
+        revenue_model = "Transaction / sale"
+        purchase_cycle = "Short / moderate"
+    else:
+        product_type = "Product / service"
+        revenue_model = "Transaction / sale"
+        purchase_cycle = "Medium / considered" if buyer_type == "B2B" else "Short / moderate"
 
     demand = data.demand_type.strip().lower()
     demand_motion = {
@@ -206,69 +177,39 @@ def _business_profile(data):
         "awareness": "Qualified attention",
     }.get(objective, "Primary conversion")
 
-    channel = data.sales_channel.strip().lower()
-    if channel == "phone":
-        conversion_path = "Phone-led"
-    elif channel in {"whatsapp", "messages", "dm", "direct messages"}:
-        conversion_path = "Conversation-led"
-    elif channel == "store":
-        conversion_path = "Offline / store"
-    elif data.has_website:
-        conversion_path = "Website-led"
-    else:
-        conversion_path = "Lead capture"
-
-    if vertical in {"local_service", "restaurant", "healthcare", "real_estate"}:
-        geography_model = "Local / regional"
-    elif vertical in {"saas", "ecommerce", "education"}:
-        geography_model = "Scalable / broad"
-    else:
-        geography_model = "Depends on delivery area"
-
-    if demand == "search":
-        acquisition_strategy = "Capture existing demand first"
+    if vertical_key == "saas":
+        acquisition_strategy = (
+            "Capture high-intent software demand, prove the product with real workflow/demo evidence, "
+            "then use discovery and retargeting to support the considered buying journey."
+        )
+    elif demand == "search":
+        acquisition_strategy = "Capture existing demand first."
     elif demand == "discovery":
-        acquisition_strategy = "Create demand first, then retarget intent"
+        acquisition_strategy = "Create demand first, then retarget intent."
     else:
-        acquisition_strategy = "Blend intent capture with demand creation"
+        acquisition_strategy = "Blend intent capture with demand creation."
 
-    if purchase_cycle == "Long / considered":
-        acquisition_strategy += " with lead qualification and follow-up"
-
-    confidence_points = 2 if best_hits else 0
-    confidence_points += 1 if data.demand_type.strip() else 0
-    confidence_points += 1 if data.objective.strip() else 0
-    confidence_points += 1 if data.sales_channel.strip() else 0
-    confidence = "High" if confidence_points >= 4 else "Medium" if confidence_points >= 2 else "Low"
-
-    vertical_label = {
+    labels = {
+        "saas": "SaaS / software",
         "real_estate": "Real estate",
         "ecommerce": "E-commerce",
-        "saas": "SaaS / software",
-        "education": "Education",
-        "healthcare": "Healthcare",
-        "hospitality": "Hospitality / travel",
-        "restaurant": "Restaurant / food",
         "local_service": "Local service",
-        "professional_service": "Professional service",
-        "automotive": "Automotive",
-        "general": "General business",
-    }.get(vertical, "General business")
+        "generic": "General business",
+    }
 
     return {
-        "vertical_key": vertical,
-        "vertical": vertical_label,
+        "vertical_key": vertical_key,
+        "vertical": labels.get(vertical_key, "General business"),
+        "product_type": product_type,
+        "target_industry": target_industry,
         "buyer_type": buyer_type,
         "revenue_model": revenue_model,
         "purchase_cycle": purchase_cycle,
         "demand_motion": demand_motion,
         "conversion_type": conversion_type,
-        "conversion_path": conversion_path,
-        "geography_model": geography_model,
         "acquisition_strategy": acquisition_strategy,
-        "confidence": confidence,
+        "confidence": "High" if vertical_key != "generic" else "Medium",
     }
-
 
 def _apply_business_profile_to_candidates(candidates, profile, data):
     by_key = {item["key"]: item for item in candidates}
@@ -891,116 +832,75 @@ def _extract_geo_hint(data):
 
 
 def _infer_business_vertical(data):
-    haystack = " ".join([
-        data.business_name,
-        data.product,
-        data.audience,
-        data.offer,
-    ]).lower()
+    # Identity is inferred mainly from what is sold, not from the target audience.
+    primary = " ".join([data.business_name, data.product, data.offer]).lower()
+    product = data.product.lower()
 
+    saas_terms = [
+        "saas", "software", "software platform", "cloud software", "crm",
+        "helpdesk", "help desk", "customer support software",
+        "subscription software", "automation platform", "ai platform",
+        "analytics platform", "project management software",
+    ]
     real_estate_terms = [
-        "apartment", "apartments", "property", "properties",
-        "real estate", "residential", "villa", "villas",
-        "townhouse", "townhouses", "compound", "compounds",
-        "developer", "home for sale", "house for sale",
-        "unit for sale",
+        "apartment", "apartments", "property", "properties", "real estate",
+        "residential", "villa", "villas", "townhouse", "compound",
+        "developer", "home for sale", "house for sale", "unit for sale",
     ]
-
     ecommerce_terms = [
-        "ecommerce", "e-commerce", "online store", "clothing",
-        "fashion", "shoes", "cosmetics", "skincare",
-        "electronics", "product store",
+        "online store", "clothing", "fashion", "shoes", "cosmetics",
+        "skincare", "electronics", "jewelry", "accessories",
+        "physical products", "consumer products",
     ]
-
     local_service_terms = [
-        "plumbing", "plumber", "electrician", "cleaning",
-        "repair", "maintenance", "painting", "salon",
-        "moving", "pest control", "landscaping",
+        "plumbing", "plumber", "electrician", "cleaning", "repair",
+        "maintenance", "painting", "salon", "moving", "pest control",
+        "landscaping",
     ]
 
-    if any(term in haystack for term in real_estate_terms):
+    if any(term in product for term in saas_terms):
+        return "saas"
+    if any(term in primary for term in real_estate_terms):
         return "real_estate"
-
-    if any(term in haystack for term in ecommerce_terms):
-        return "ecommerce"
-
-    if any(term in haystack for term in local_service_terms):
+    if any(term in primary for term in local_service_terms):
         return "local_service"
-
+    if any(term in product for term in ecommerce_terms):
+        return "ecommerce"
     return "generic"
 
 
-def _real_estate_subject(data):
-    haystack = f"{data.product} {data.audience}".lower()
-
-    options = [
-        ("townhouse", "Townhouses"),
-        ("villa", "Villas"),
-        ("apartment", "Apartments"),
-        ("home", "Homes"),
-        ("house", "Homes"),
-        ("unit", "Units"),
+def _infer_target_industry(data):
+    audience = data.audience.lower()
+    groups = [
+        ("E-commerce", ["e-commerce", "ecommerce", "online store", "online businesses", "online business"]),
+        ("Real estate", ["real estate", "property developer", "property company"]),
+        ("Healthcare", ["clinic", "medical", "healthcare", "dentist", "doctor"]),
+        ("Hospitality", ["hotel", "hospitality", "resort", "travel company"]),
+        ("Education", ["school", "academy", "university", "education business"]),
+        ("Professional services", ["agency", "consulting", "law firm", "accounting firm"]),
+        ("Restaurants / food", ["restaurant", "cafe", "food business"]),
     ]
-
-    for token, label in options:
-        if token in haystack:
+    for label, terms in groups:
+        if any(term in audience for term in terms):
             return label
-
-    return "Properties"
-
-
-def _short_service_name(product):
-    value = " ".join(str(product or "").split()).strip()
-
-    for separator in [
-        " and ",
-        " with ",
-        " for ",
-        " including ",
-        ",",
-        "/",
-    ]:
-        if separator in value.lower():
-            index = value.lower().find(separator)
-            value = value[:index].strip()
-            break
-
-    words = value.split()
-
-    if len(words) > 4:
-        value = " ".join(words[:4])
-
-    return _trim_asset(value, 24)
-
-
-def _offer_parts(offer):
-    value = " ".join(str(offer or "").split()).strip()
-
-    if not value:
-        return []
-
-    parts = [value]
-
-    for separator in [" with ", " and ", ","]:
-        expanded = []
-
-        for item in parts:
-            if separator in item.lower():
-                lower = item.lower()
-                index = lower.find(separator)
-
-                expanded.append(item[:index].strip())
-                expanded.append(item[index + len(separator):].strip())
-            else:
-                expanded.append(item)
-
-        parts = expanded
-
-    return _unique_assets(parts, 30)
-
+    return "General / mixed"
 
 def _cta_for(data, vertical):
     objective = data.objective.strip().lower()
+    offer = data.offer.strip().lower()
+
+    if vertical == "saas":
+        if "free trial" in offer or "trial" in offer:
+            return "Start Free Trial"
+        if "demo" in offer:
+            return "Book a Demo"
+        return {
+            "awareness": "Learn More",
+            "traffic": "See How It Works",
+            "messages": "Talk to Sales",
+            "leads": "Book a Demo",
+            "sales": "Start Now",
+        }.get(objective, "See How It Works")
 
     if vertical == "real_estate":
         return {
@@ -1011,6 +911,24 @@ def _cta_for(data, vertical):
             "sales": "View Units",
         }.get(objective, "Request Details")
 
+    if vertical == "local_service":
+        return {
+            "awareness": "Learn More",
+            "traffic": "View Services",
+            "messages": "Send Message",
+            "leads": "Request Quote",
+            "sales": "Book Service",
+        }.get(objective, "Request Quote")
+
+    if vertical == "ecommerce":
+        return {
+            "awareness": "Learn More",
+            "traffic": "Shop Now",
+            "messages": "Send Message",
+            "leads": "Learn More",
+            "sales": "Shop Now",
+        }.get(objective, "Shop Now")
+
     return {
         "awareness": "Learn More",
         "traffic": "Learn More",
@@ -1018,235 +936,6 @@ def _cta_for(data, vertical):
         "leads": "Get Quote",
         "sales": "Shop Now",
     }.get(objective, "Learn More")
-
-
-def _real_estate_search_pack(data, cta):
-    business = data.business_name.strip()
-    location = _extract_geo_hint(data)
-    subject = _real_estate_subject(data)
-    singular = {
-        "Apartments": "Apartment",
-        "Villas": "Villa",
-        "Townhouses": "Townhouse",
-        "Homes": "Home",
-        "Units": "Unit",
-        "Properties": "Property",
-    }.get(subject, "Property")
-
-    offer = data.offer.strip()
-    offer_parts = _offer_parts(offer)
-
-    headlines = [
-        f"{location} {subject}",
-        f"{subject} For Sale",
-        f"{subject} In {location}",
-        business,
-        "View Available Units",
-        "Request Property Details",
-        "Flexible Payment Plans",
-        "Book A Consultation",
-        f"{location} Property",
-        f"Buy In {location}",
-        cta,
-    ]
-
-    headlines.extend(offer_parts)
-    headlines = _unique_assets(headlines, 30)[:15]
-
-    descriptions = _unique_assets([
-        f"Explore {subject.lower()} in {location}. {offer or 'Request current availability and payment details.'}",
-        f"View available {subject.lower()} in {location}. Request current prices, availability and payment details.",
-        f"Compare {singular.lower()} options and payment plans with {business}. Request property details.",
-        f"Looking to buy in {location}? View property details and book a consultation.",
-    ], 90)[:4]
-
-    keyword_groups = {
-        "Core property intent": _unique_assets([
-            f"{location} {subject}".lower(),
-            f"{subject} for sale {location}".lower(),
-            f"{location} property for sale".lower(),
-            f"{location} real estate".lower(),
-        ]),
-        "Payment intent": _unique_assets([
-            f"{location} {subject} installment".lower(),
-            f"{location} {singular} payment plan".lower(),
-            f"{location} {subject} price".lower(),
-        ]),
-        "Commercial intent": _unique_assets([
-            f"buy {singular} in {location}".lower(),
-            f"{subject} for sale in {location}".lower(),
-            f"{location} property prices".lower(),
-        ]),
-        "Brand": _unique_assets([
-            business.lower(),
-        ]),
-    }
-
-    if "invest" in data.audience.lower():
-        keyword_groups["Investment intent"] = _unique_assets([
-            f"{location} investment property".lower(),
-            f"property investment {location}".lower(),
-        ])
-
-    negative_ideas = [
-        "jobs",
-        "careers",
-        "salary",
-        "course",
-        "training",
-        "definition",
-    ]
-
-    match_type_plan = (
-        "Conversion tracking is confirmed. Keep ad groups tightly themed. "
-        "Use Smart Bidding and test broad match where conversion quality is reliable; "
-        "keep exact/phrase terms for brand and high-value location intent. "
-        "Review Search Terms before adding negatives."
-        if data.has_tracking
-        else (
-            "Conversion tracking is not confirmed. Start with tighter phrase/exact property "
-            "and location intent, then expand only after measurement is reliable."
-        )
-    )
-
-    return {
-        "headlines": headlines,
-        "descriptions": descriptions,
-        "keyword_groups": keyword_groups,
-        "negative_keyword_ideas": negative_ideas,
-        "match_type_plan": match_type_plan,
-        "headline_limit": 30,
-        "description_limit": 90,
-    }
-
-
-def _generic_google_search_pack(data, cta):
-    business = data.business_name.strip()
-    product = data.product.strip()
-    country = data.country.strip()
-    offer = data.offer.strip()
-    service = _short_service_name(product)
-
-    offer_parts = _offer_parts(offer)
-
-    urgent_signal = any(
-        word in f"{product} {offer}".lower()
-        for word in [
-            "emergency",
-            "urgent",
-            "same-day",
-            "same day",
-            "fast",
-        ]
-    )
-
-    pricing_signal = any(
-        word in f"{product} {offer}".lower()
-        for word in [
-            "quote",
-            "price",
-            "pricing",
-            "cost",
-            "estimate",
-        ]
-    )
-
-    headlines = [
-        service.title(),
-        f"{service} {country}".title(),
-        business,
-        cta,
-        f"Local {service}".title(),
-        "Fast Local Service",
-        "Clear Next Steps",
-    ]
-
-    action_headline = (
-        f"Book {service}"
-        if any(word in product.lower() for word in ["service", "repair", "plumb", "clean"])
-        else f"Explore {service}"
-    )
-    headlines.append(action_headline)
-    headlines.extend(offer_parts)
-
-    if urgent_signal:
-        headlines.extend([
-            "Emergency Help Available",
-            "Same-Day Service",
-            "Fast Response Available",
-        ])
-
-    if pricing_signal:
-        headlines.extend([
-            "Upfront Quote",
-            "Clear Pricing",
-        ])
-
-    headlines = _unique_assets(headlines, 30)[:15]
-
-    descriptions = _unique_assets([
-        f"{business} offers {product}. {offer or 'Check availability and next steps.'}",
-        f"Need {service}? Check availability, details and pricing with {business}.",
-        f"Serving customers in {country}. Ask about {service} and the next step.",
-        f"Compare the service, proof and offer before you decide. Contact {business}.",
-    ], 90)[:4]
-
-    keyword_groups = {
-        "Core service": _unique_assets([
-            service.lower(),
-            product.lower(),
-        ]),
-        "Local intent": _unique_assets([
-            f"{service} near me".lower(),
-            f"{service} {country}".lower(),
-        ]),
-        "Commercial intent": _unique_assets([
-            f"{service} quote".lower(),
-            f"{service} price".lower(),
-            f"{service} cost".lower(),
-        ]),
-        "Brand": _unique_assets([
-            business.lower(),
-        ]),
-    }
-
-    if urgent_signal:
-        keyword_groups["Urgent intent"] = _unique_assets([
-            f"emergency {service}".lower(),
-            f"urgent {service}".lower(),
-        ])
-
-    negative_ideas = [
-        "jobs",
-        "careers",
-        "salary",
-        "course",
-        "training",
-        "diy",
-        "definition",
-    ]
-
-    match_type_plan = (
-        "Conversion tracking is confirmed. Start with Smart Bidding and test broad match "
-        "on tightly themed ad groups. Keep phrase/exact terms for brand or queries that "
-        "need tighter control. Review Search Terms before adding negatives."
-        if data.has_tracking
-        else (
-            "Without confirmed conversion tracking, start with tighter phrase/exact targeting "
-            "and avoid aggressive broad-match expansion until measurement is reliable."
-        )
-    )
-
-    return {
-        "headlines": headlines,
-        "descriptions": descriptions,
-        "keyword_groups": keyword_groups,
-        "negative_keyword_ideas": negative_ideas,
-        "match_type_plan": match_type_plan,
-        "headline_limit": 30,
-        "description_limit": 90,
-    }
-
 
 def _google_search_pack(data, vertical, cta):
     if vertical == "real_estate":
@@ -1266,6 +955,7 @@ def _creative_plan(data, candidate):
     offer = data.offer.strip()
 
     vertical = _infer_business_vertical(data)
+    target_industry = _infer_target_industry(data)
     location_hint = _extract_geo_hint(data)
     cta = _cta_for(data, vertical)
 
@@ -1301,6 +991,27 @@ def _creative_plan(data, candidate):
                 ),
             },
         ]
+    elif vertical == "saas":
+        angles = [
+            {
+                "name": "Workflow pain",
+                "idea": (
+                    f"Lead with the real repetitive support workload faced by {audience}. "
+                    f"Show how {business} fits into the workflow without inventing performance claims."
+                ),
+            },
+            {
+                "name": "Product demonstration",
+                "idea": (
+                    "Show the real interface, workflow, automation or before/after process. "
+                    "Use product proof instead of generic promises."
+                ),
+            },
+            {
+                "name": "Low-risk trial",
+                "idea": f"Reduce adoption friction with the verified offer: {offer_line}",
+            },
+        ]
     else:
         angles = [
             {
@@ -1323,36 +1034,48 @@ def _creative_plan(data, candidate):
             },
         ]
 
-    hooks = [
-        f"Looking for {product} in {country}?",
-        f"Need a clear next step for {product}?",
-        f"Before you choose {product}, check what actually matters.",
-        f"{business}: a practical way to get started with {product}.",
-        (
-            f"{offer} — here is what to know before you act."
-            if offer
-            else f"Considering {product}? Start with the facts that matter."
-        ),
-    ]
-
-    headlines = [
-        business,
-        product,
-        f"{product} in {country}",
-        cta,
-    ]
-
-    primary_texts = [
-        (
-            f"{business} offers {product} for {audience}. "
-            f"{offer_line} {cta}."
-        ),
-        (
-            f"Looking for {product} in {country}? "
-            f"See the details, understand the next step, and decide whether "
-            f"{business} is the right fit. {cta}."
-        ),
-    ]
+    if vertical == "saas":
+        hooks = [
+            "Still answering the same customer questions manually?",
+            "What would your support team stop doing if repetitive replies were automated?",
+            f"See how {business} fits into a real customer-support workflow.",
+            f"Give {target_industry.lower()} support teams a faster way to handle repetitive questions.",
+            (f"Try the workflow with {offer}." if offer else f"See how {business} works before changing your support process."),
+        ]
+        headlines = [
+            business,
+            "AI Customer Support",
+            "Reduce Repetitive Support",
+            "Faster Support Workflows",
+            cta,
+        ]
+        primary_texts = [
+            (
+                f"Support teams lose time repeating the same answers. {business} is {product}. "
+                f"See the real workflow, evaluate the fit for your team, and {cta.lower()}. {offer_line}"
+            ),
+            (
+                f"For {audience}: explore how {business} can support repetitive customer questions "
+                f"without adding another manual process. See the product in action and {cta.lower()}."
+            ),
+            (
+                f"Evaluate {business} on what matters: workflow fit, product proof, setup friction "
+                f"and the verified offer. {offer_line}"
+            ),
+        ]
+    else:
+        hooks = [
+            f"Looking for {product} in {country}?",
+            f"Need a clear next step for {product}?",
+            f"Before you choose {product}, check what actually matters.",
+            f"{business}: a practical way to get started with {product}.",
+            (f"{offer} — here is what to know before you act." if offer else f"Considering {product}? Start with the facts that matter."),
+        ]
+        headlines = [business, product, f"{product} in {country}", cta]
+        primary_texts = [
+            f"{business} offers {product} for {audience}. {offer_line} {cta}.",
+            f"Looking for {product} in {country}? See the details, understand the next step, and decide whether {business} is the right fit. {cta}.",
+        ]
 
     descriptions = []
     keyword_themes = []
@@ -1391,23 +1114,34 @@ def _creative_plan(data, candidate):
             "Use static/carousel support assets when they add useful product or proof detail.",
         ]
 
-        video_scripts = [
-            {
-                "name": "Problem → Solution video",
-                "hook": hooks[1],
-                "shots": [
-                    "Show the real customer situation/problem in the first seconds.",
-                    f"Show {product} being used, delivered or explored.",
-                    "Show real proof, process or other substantiated evidence.",
-                    f"Finish with the offer/next step: {offer_line}",
-                ],
-                "on_screen_text": [
-                    product,
-                    offer_line,
-                    cta,
-                ],
-            },
-        ]
+        if vertical == "saas":
+            video_scripts = [
+                {
+                    "name": "SaaS workflow demo",
+                    "hook": hooks[0],
+                    "shots": [
+                        "Open on a real support inbox or repeated customer-question workflow.",
+                        f"Show the real {business} interface handling or organizing the workflow.",
+                        "Show a real feature, setup step or product proof that can be substantiated.",
+                        f"Close with the verified offer and CTA: {offer_line} · {cta}",
+                    ],
+                    "on_screen_text": ["Reduce repetitive support work", offer_line, cta],
+                },
+            ]
+        else:
+            video_scripts = [
+                {
+                    "name": "Problem → Solution video",
+                    "hook": hooks[1],
+                    "shots": [
+                        "Show the real customer situation/problem in the first seconds.",
+                        f"Show {product} being used, delivered or explored.",
+                        "Show real proof, process or other substantiated evidence.",
+                        f"Finish with the offer/next step: {offer_line}",
+                    ],
+                    "on_screen_text": [product, offer_line, cta],
+                },
+            ]
 
     elif campaign_type == "TikTok Search Ads Campaign":
         formats = [
@@ -1510,9 +1244,11 @@ def _creative_plan(data, candidate):
             "real_estate": "Real estate",
             "local_service": "Local service",
             "ecommerce": "E-commerce",
+            "saas": "SaaS / software",
             "generic": "General business",
         }.get(vertical, "General business"),
         "location": location_hint,
+        "target_industry": target_industry,
         "subject": (
             _real_estate_subject(data)
             if vertical == "real_estate"
@@ -2182,6 +1918,69 @@ def register_strategy_engine(app, get_db, get_current_user):
                 "strategy": None,
             }
 
+        return {
+            "success": True,
+            "strategy": {
+                "id": row["id"],
+                "mode": row["mode"],
+                "status": row["status"],
+                "campaign_id": row["campaign_id"],
+                "input": json.loads(row["input_json"]),
+                "output": json.loads(row["output_json"]),
+                "created_at": row["created_at"],
+                "updated_at": row["updated_at"],
+            },
+        }
+
+    @router.get("/api/strategy")
+    def list_strategies(
+        limit: int = 50,
+        user=Depends(get_current_user),
+    ):
+        limit = max(1, min(limit, 100))
+        db = get_db()
+        rows = db.execute("""
+            SELECT id, mode, input_json, output_json, status, campaign_id, created_at, updated_at
+            FROM marketing_strategies
+            WHERE user_id = ?
+            ORDER BY id DESC
+            LIMIT ?
+        """, (user["id"], limit)).fetchall()
+        db.close()
+
+        items = []
+        for row in rows:
+            inp = json.loads(row["input_json"])
+            out = json.loads(row["output_json"])
+            items.append({
+                "id": row["id"],
+                "mode": row["mode"],
+                "status": row["status"],
+                "campaign_id": row["campaign_id"],
+                "created_at": row["created_at"],
+                "updated_at": row["updated_at"],
+                "business_name": inp.get("business_name", ""),
+                "product": inp.get("product", ""),
+                "objective": out.get("requested_objective", inp.get("objective", "")),
+                "campaign_type": out.get("recommended_campaign_type", ""),
+                "platform": out.get("recommended_platform", ""),
+                "fit_score": out.get("fit_score", 0),
+            })
+        return {"success": True, "strategies": items}
+
+    @router.get("/api/strategy/{strategy_id}")
+    def get_strategy(
+        strategy_id: int,
+        user=Depends(get_current_user),
+    ):
+        db = get_db()
+        row = db.execute("""
+            SELECT * FROM marketing_strategies
+            WHERE id = ? AND user_id = ?
+        """, (strategy_id, user["id"])).fetchone()
+        db.close()
+        if not row:
+            raise HTTPException(status_code=404, detail="Strategy not found")
         return {
             "success": True,
             "strategy": {

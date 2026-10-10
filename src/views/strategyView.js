@@ -319,6 +319,8 @@ export function strategyResultView(response) {
         <p class="review-kicker">BUSINESS UNDERSTANDING</p>
         <div class="strategy-decision-card">
           <div><small>Business type</small><strong>${escapeHtml(profile.vertical || "")}</strong></div>
+          <div><small>Product type</small><strong>${escapeHtml(profile.product_type || "")}</strong></div>
+          <div><small>Target industry</small><strong>${escapeHtml(profile.target_industry || "")}</strong></div>
           <div><small>Buyer</small><strong>${escapeHtml(profile.buyer_type || "")}</strong></div>
           <div><small>Revenue model</small><strong>${escapeHtml(profile.revenue_model || "")}</strong></div>
           <div><small>Purchase cycle</small><strong>${escapeHtml(profile.purchase_cycle || "")}</strong></div>
@@ -429,7 +431,7 @@ export function strategyResultView(response) {
       </section>
 
       <section class="strategy-card creative-engine-card">
-        <p class="review-kicker">CREATIVE ENGINE V1.2</p>
+        <p class="review-kicker">CREATIVE ENGINE V1.3</p>
         <h2>Platform-ready campaign drafts</h2>
         <p class="strategy-note">
           MarketFlow adapts the creative output to the selected campaign type.
@@ -580,6 +582,40 @@ export function strategyResultView(response) {
           Accept Strategy & Create Draft
         </button>
       </section>
+    </section>
+  `;
+}
+
+
+export function strategyHistoryView(strategies = []) {
+  const cards = strategies.length
+    ? strategies.map(item => `
+        <article class="strategy-history-card">
+          <div>
+            <small>${escapeHtml(new Date(item.created_at).toLocaleString())}</small>
+            <h3>${escapeHtml(item.business_name || "Saved strategy")}</h3>
+            <p>${escapeHtml(item.product || "")}</p>
+            <div class="creative-tags">
+              <span>${escapeHtml(item.platform || "")}</span>
+              <span>${escapeHtml(item.campaign_type || "")}</span>
+              <span>${escapeHtml(item.objective || "")}</span>
+              <span>Fit ${escapeHtml(item.fit_score || 0)}/100</span>
+            </div>
+          </div>
+          <button class="strategy-primary strategy-history-view" data-view-strategy="${escapeHtml(item.id)}">
+            View Full Strategy
+          </button>
+        </article>
+      `).join("")
+    : `<div class="empty-card"><h2>No saved strategies yet</h2><p>Generate a strategy and it will appear here automatically.</p></div>`;
+
+  return `
+    <section class="page strategy-page">
+      <button data-page="dashboard" class="back-button">← Dashboard</button>
+      <p class="review-kicker">STRATEGY HISTORY</p>
+      <h1>Saved strategies</h1>
+      <p class="subtitle">Every generated strategy is saved. Open any one to see the complete original result.</p>
+      <div class="strategy-history-list">${cards}</div>
     </section>
   `;
 }

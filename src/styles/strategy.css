@@ -595,3 +595,86 @@
   color: #d1d5db;
   line-height: 1.55;
 }
+
+
+.strategy-history-list {
+  display: grid;
+  gap: 16px;
+  margin-top: 22px;
+}
+.strategy-history-card {
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+  border-radius: 24px;
+  background: #fff;
+}
+.strategy-history-card h3 { margin: 8px 0; }
+.strategy-history-card p { margin: 0 0 12px; }
+.strategy-history-view { width: 100%; }
+
+
+.strategy-agent-card {
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+  border-radius: 28px;
+  background: #fff;
+}
+
+.strategy-agent-status {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-weight: 700;
+}
+
+.strategy-agent-chat {
+  display: grid;
+  gap: 14px;
+}
+
+.agent-bubble {
+  max-width: 92%;
+  padding: 18px;
+  border-radius: 22px;
+  background: #f2f4f8;
+}
+
+.agent-bubble.user {
+  justify-self: end;
+  background: #101827;
+  color: #fff;
+}
+
+.agent-bubble p {
+  margin: 6px 0 0;
+  line-height: 1.5;
+}
+
+.strategy-agent-composer {
+  display: grid;
+  gap: 12px;
+}
+
+.strategy-agent-composer textarea,
+.strategy-agent-composer input {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 54px;
+  padding: 16px;
+  border: 1px solid #dfe3ea;
+  border-radius: 18px;
+  font: inherit;
+  background: #f8f9fb;
+}
+
+.strategy-agent-options {
+  display: grid;
+  gap: 10px;
+}
+
+.strategy-agent-options button {
+  width: 100%;
+  text-align: left;
+}

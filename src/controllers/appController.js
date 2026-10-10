@@ -5,7 +5,11 @@ import {
   changePassword,
   generateStrategy,
   getLatestStrategy,
+  getStrategies,
+  getStrategy,
   acceptStrategy,
+  startStrategyAgent,
+  answerStrategyAgent,
   getDashboardOverview,
   getNotifications,
   markNotificationRead,
@@ -41,7 +45,8 @@ import {
 
 import {
   strategyView,
-  strategyResultView
+  strategyResultView,
+  strategyHistoryView
 } from "../views/strategyView.js";
 
 const app = document.querySelector("#app");
@@ -194,10 +199,11 @@ async function renderAppHistoryState(
     state.page ===
     "strategy-result"
   ) {
-    await showLatestStrategy(
-      false
-    );
-
+    if (state.id) {
+      await showStrategyById(state.id, false);
+    } else {
+      await showLatestStrategy(false);
+    }
     return;
   }
 
@@ -227,6 +233,11 @@ async function showPage(
     if (page === "strategy") {
       pageContent.innerHTML =
         strategyView(strategyMode);
+    }
+
+    if (page === "strategy-history") {
+      const response = await getStrategies(50);
+      pageContent.innerHTML = strategyHistoryView(response.strategies || []);
     }
 
     if (page === "campaigns") {
@@ -305,8 +316,10 @@ async function showPage(
     attachNavigation();
     attachStrategyLaunchers();
     attachStrategyLast();
+    attachStrategyHistory();
     attachStrategyWizard();
     attachStrategyResultActions();
+    attachStrategyAgent();
     attachCampaignForm();
     attachCampaignDelete();
     attachCampaignReview();
@@ -418,7 +431,8 @@ async function showLatestStrategy(
 
   if (pushHistory) {
     saveAppHistory(
-      "strategy-result"
+      "strategy-result",
+      { id: latest.id }
     );
   }
 
@@ -437,6 +451,53 @@ async function showLatestStrategy(
   );
 }
 
+
+
+function attachStrategyHistory() {
+  document.querySelectorAll("[data-view-strategy]").forEach(button => {
+    button.onclick = async () => {
+      const oldText = button.textContent;
+      button.disabled = true;
+      button.textContent = "Loading...";
+      try {
+        await showStrategyById(button.dataset.viewStrategy);
+      } catch (error) {
+        button.disabled = false;
+        button.textContent = oldText;
+        alert(error.message);
+      }
+    };
+  });
+}
+
+async function showStrategyById(id, pushHistory = true) {
+  const response = await getStrategy(id);
+  const saved = response.strategy;
+  if (!saved) {
+    alert("Strategy not found.");
+    return;
+  }
+
+  const pageContent = document.querySelector("#pageContent");
+  pageContent.innerHTML = strategyResultView({
+    strategy_id: saved.id,
+    strategy: saved.output,
+    status: saved.status,
+    campaign_id: saved.campaign_id
+  });
+
+  if (pushHistory) {
+    saveAppHistory("strategy-result", { id: saved.id });
+  }
+
+  setActiveNavigation("strategy");
+  attachNavigation();
+  attachStrategyLaunchers();
+  attachStrategyLast();
+  attachStrategyHistory();
+  attachStrategyResultActions();
+  window.scrollTo(0, 0);
+}
 
 function attachStrategyWizard() {
   const form = document.querySelector("#strategyForm");
@@ -545,7 +606,8 @@ function attachStrategyWizard() {
       pageContent.innerHTML = strategyResultView(response);
 
       saveAppHistory(
-        "strategy-result"
+        "strategy-result",
+        { id: response.strategy_id }
       );
 
       setActiveNavigation("strategy");
@@ -647,6 +709,188 @@ function attachNavigation() {
       };
 
     });
+}
+
+
+function attachStrategyAgent() {
+  const startButton = document.querySelector("#startStrategyAgentBtn");
+  if (!startButton) return;
+
+  const chat = document.querySelector("#strategyAgentChat");
+  const composer = document.querySelector("#strategyAgentComposer");
+
+  let sessionId = null;
+
+  const addBubble = (role, text) => {
+    const article = document.createElement("article");
+    article.className = role === "user" ? "agent-bubble user" : "agent-bubble";
+    article.innerHTML = `
+      <strong>${role === "user" ? "You" : "MarketFlow Agent"}</strong>
+      <p></p>
+    `;
+    article.querySelector("p").textContent = String(text || "");
+    chat.appendChild(article);
+    article.scrollIntoView({ behavior: "smooth", block: "end" });
+  };
+
+  const renderQuestion = question => {
+    if (!question) return;
+
+    addBubble("agent", question.label);
+    composer.innerHTML = "";
+
+    const submitValue = async value => {
+      if (value === "" && !question.optional) {
+        alert("Please answer this question.");
+        return;
+      }
+
+      addBubble(
+        "user",
+        value === true
+          ? "Yes"
+          : value === false
+            ? "No"
+            : value === ""
+              ? "Skip"
+              : value
+      );
+
+      composer.innerHTML = `
+        <button class="primary-action" disabled>
+          Thinking...
+        </button>
+      `;
+
+      try {
+        const response = await answerStrategyAgent(sessionId, value);
+
+        if (response.complete) {
+          addBubble(
+            "agent",
+            response.agent_summary || "I have selected the strategy."
+          );
+
+          const pageContent = document.querySelector("#pageContent");
+          pageContent.innerHTML = strategyResultView(response);
+
+          saveAppHistory(
+            "strategy-result",
+            { id: response.strategy_id }
+          );
+
+          setActiveNavigation("strategy");
+          attachNavigation();
+          attachStrategyLaunchers();
+          attachStrategyLast();
+
+          if (typeof attachStrategyHistory === "function") {
+            attachStrategyHistory();
+          }
+
+          attachStrategyResultActions();
+          window.scrollTo(0, 0);
+          return;
+        }
+
+        renderQuestion(response.question);
+
+      } catch (error) {
+        addBubble(
+          "agent",
+          "I could not process that answer: " + error.message
+        );
+        renderQuestion(question);
+      }
+    };
+
+    if (question.type === "choice") {
+      const grid = document.createElement("div");
+      grid.className = "strategy-agent-options";
+
+      (question.options || []).forEach(option => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "strategy-secondary";
+        button.textContent = option.label;
+        button.onclick = () => submitValue(option.value);
+        grid.appendChild(button);
+      });
+
+      composer.appendChild(grid);
+      return;
+    }
+
+    if (question.type === "boolean") {
+      const grid = document.createElement("div");
+      grid.className = "strategy-agent-options";
+
+      [["Yes", true], ["No", false]].forEach(([label, value]) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "strategy-secondary";
+        button.textContent = label;
+        button.onclick = () => submitValue(value);
+        grid.appendChild(button);
+      });
+
+      composer.appendChild(grid);
+      return;
+    }
+
+    const input = document.createElement(
+      question.type === "number" ? "input" : "textarea"
+    );
+
+    if (question.type === "number") {
+      input.type = "number";
+      input.step = "0.01";
+      input.min = "0";
+    }
+
+    input.placeholder = question.placeholder || "";
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "primary-action";
+    button.textContent = question.optional ? "Continue" : "Send";
+    button.onclick = () => submitValue(input.value.trim());
+
+    composer.appendChild(input);
+    composer.appendChild(button);
+
+    if (question.optional) {
+      const skip = document.createElement("button");
+      skip.type = "button";
+      skip.className = "strategy-secondary";
+      skip.textContent = "Skip";
+      skip.onclick = () => submitValue("");
+      composer.appendChild(skip);
+    }
+
+    input.focus();
+  };
+
+  startButton.onclick = async () => {
+    startButton.disabled = true;
+    startButton.textContent = "Starting...";
+
+    try {
+      const response = await startStrategyAgent();
+      sessionId = response.session_id;
+
+      if (response.message) {
+        addBubble("agent", response.message);
+      }
+
+      renderQuestion(response.question);
+
+    } catch (error) {
+      startButton.disabled = false;
+      startButton.textContent = "Start Strategy Agent";
+      alert(error.message);
+    }
+  };
 }
 
 function attachCampaignForm() {

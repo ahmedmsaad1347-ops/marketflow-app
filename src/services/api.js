@@ -223,3 +223,15 @@ export function answerStrategyAgent(sessionId, value) {
     body: JSON.stringify({ value })
   });
 }
+
+
+export function buildStrategyAgent(sessionId) {
+  return request(`/api/strategy-agent/${sessionId}/build`, {
+    method: "POST"
+  });
+}
+
+
+export function resumeStrategyAgent(sessionId) {
+  return request(`/api/strategy-agent/${sessionId}/resume`);
+}

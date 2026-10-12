@@ -937,6 +937,181 @@ def _cta_for(data, vertical):
         "sales": "Shop Now",
     }.get(objective, "Learn More")
 
+
+def _short_service_name(product):
+    value = " ".join(str(product or "").split()).strip()
+    lower = value.lower()
+
+    for prefix in [
+        "ai-powered ",
+        "cloud-based ",
+        "cloud based ",
+        "software for ",
+        "service for ",
+        "services for ",
+    ]:
+        if lower.startswith(prefix):
+            value = value[len(prefix):].strip()
+            lower = value.lower()
+
+    for marker in [" for ", " with ", " that ", " who ", ","]:
+        idx = lower.find(marker)
+        if idx != -1:
+            value = value[:idx].strip()
+            lower = value.lower()
+
+    if not value:
+        return "Offer"
+
+    words = value.split()
+    if len(words) > 5:
+        value = " ".join(words[:5])
+
+    return value[:50].strip()
+
+
+def _real_estate_subject(data):
+    text = " ".join([
+        data.product.strip(),
+        data.offer.strip(),
+    ]).lower()
+
+    if "villa" in text:
+        return "Villas"
+    if "townhouse" in text:
+        return "Townhouses"
+    if "apartment" in text:
+        return "Apartments"
+    if "home" in text or "house" in text:
+        return "Homes"
+
+    return "Properties"
+
+
+def _generic_google_search_pack(data, cta):
+    business = data.business_name.strip()
+    product = data.product.strip()
+    country = data.country.strip()
+    offer = data.offer.strip()
+    subject = _short_service_name(product)
+
+    headlines = _unique_assets([
+        business,
+        subject,
+        f"{subject} {country}",
+        cta,
+        "Compare Your Options",
+        "See How It Works",
+        "Get Started Today",
+        offer,
+    ], 30)
+
+    descriptions = _unique_assets([
+        f"Explore {product}. See the details, proof and next step before you decide.",
+        f"{business} helps customers evaluate {subject.lower()} with a clear path to {cta.lower()}.",
+        (
+            f"{offer}. Review the details and take the next step with {business}."
+            if offer
+            else f"Review {business}, the offer and the next step before you decide."
+        ),
+        f"Looking for {subject.lower()} in {country}? Compare the offer and decide if it fits.",
+    ], 90)
+
+    return {
+        "headline_limit": 30,
+        "description_limit": 90,
+        "headlines": headlines[:15],
+        "descriptions": descriptions[:4],
+        "keyword_groups": {
+            "Core intent": _unique_assets([
+                subject.lower(),
+                product.lower(),
+                f"{subject.lower()} {country.lower()}",
+            ]),
+            "Commercial intent": _unique_assets([
+                f"{subject.lower()} price",
+                f"{subject.lower()} cost",
+                f"best {subject.lower()}",
+                f"{subject.lower()} solution",
+            ]),
+            "Brand": _unique_assets([business.lower()]),
+        },
+        "match_type_plan": (
+            "Start with tightly themed phrase/exact terms. Add broad match only when "
+            "conversion tracking is reliable and Smart Bidding has enough quality signals. "
+            "Review Search Terms before adding negatives."
+        ),
+        "negative_keyword_ideas": [
+            "jobs", "careers", "salary", "course", "training", "definition"
+        ],
+    }
+
+
+def _real_estate_search_pack(data, cta):
+    business = data.business_name.strip()
+    location = _extract_geo_hint(data)
+    subject = _real_estate_subject(data)
+    offer = data.offer.strip()
+
+    headlines = _unique_assets([
+        f"{location} {subject}",
+        f"{subject} For Sale",
+        f"{subject} In {location}",
+        business,
+        "View Available Units",
+        cta,
+        "Flexible Payment Plans",
+        "Book A Consultation",
+        f"Buy In {location}",
+        offer,
+    ], 30)
+
+    descriptions = _unique_assets([
+        f"Explore {subject.lower()} in {location}. View availability, prices and payment details.",
+        f"Compare available {subject.lower()}, payment plans and the next step with {business}.",
+        (
+            f"{offer}. Request verified property details and current availability."
+            if offer
+            else f"Request verified property details and current availability from {business}."
+        ),
+        f"Considering property in {location}? Review real unit details before you decide.",
+    ], 90)
+
+    return {
+        "headline_limit": 30,
+        "description_limit": 90,
+        "headlines": headlines[:15],
+        "descriptions": descriptions[:4],
+        "keyword_groups": {
+            "Core property intent": _unique_assets([
+                f"{location.lower()} {subject.lower()}",
+                f"{subject.lower()} for sale {location.lower()}",
+                f"{location.lower()} property for sale",
+                f"{location.lower()} real estate",
+            ]),
+            "Payment intent": _unique_assets([
+                f"{location.lower()} {subject.lower()} installment",
+                f"{location.lower()} property payment plan",
+                f"{location.lower()} {subject.lower()} price",
+            ]),
+            "Commercial intent": _unique_assets([
+                f"buy {subject.lower()} in {location.lower()}",
+                f"{subject.lower()} for sale in {location.lower()}",
+                f"{location.lower()} property prices",
+            ]),
+            "Brand": _unique_assets([business.lower()]),
+        },
+        "match_type_plan": (
+            "Use tightly themed phrase/exact property queries first. "
+            "Expand carefully after qualified-lead tracking is reliable. "
+            "Review Search Terms before applying negatives."
+        ),
+        "negative_keyword_ideas": [
+            "jobs", "careers", "salary", "course", "training", "definition"
+        ],
+    }
+
+
 def _google_search_pack(data, vertical, cta):
     if vertical == "real_estate":
         return _real_estate_search_pack(data, cta)

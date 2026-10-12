@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from backend.strategy_engine import StrategyRequest, build_strategy
+from backend.research_agent import research_business, review_strategy, apply_review
 
 
 class AgentAnswer(BaseModel):
@@ -303,6 +304,90 @@ def register_strategy_agent(app, get_db, get_current_user):
             },
         }
 
+
+    @router.get("/api/strategy-agent/{session_id}/resume")
+    def resume_agent(
+        session_id: int,
+        user=Depends(get_current_user),
+    ):
+        db = get_db()
+
+        row = db.execute("""
+            SELECT *
+            FROM strategy_agent_sessions
+            WHERE id = ?
+            AND user_id = ?
+        """, (
+            session_id,
+            user["id"],
+        )).fetchone()
+
+        if not row:
+            db.close()
+            raise HTTPException(
+                status_code=404,
+                detail="Agent session not found.",
+            )
+
+        state = json.loads(row["state_json"])
+        status = row["status"]
+        strategy_id = row["strategy_id"]
+
+        if status == "Complete" and strategy_id:
+            strategy_row = db.execute("""
+                SELECT output_json
+                FROM marketing_strategies
+                WHERE id = ?
+                AND user_id = ?
+            """, (
+                strategy_id,
+                user["id"],
+            )).fetchone()
+
+            db.close()
+
+            return {
+                "success": True,
+                "session_id": session_id,
+                "status": "Complete",
+                "strategy_id": strategy_id,
+                "strategy": (
+                    json.loads(strategy_row["output_json"])
+                    if strategy_row
+                    else None
+                ),
+            }
+
+        next_key = _next_key(state)
+
+        db.close()
+
+        if status == "Ready" or next_key is None:
+            return {
+                "success": True,
+                "session_id": session_id,
+                "status": "Ready",
+                "ready_to_build": True,
+                "message": (
+                    "Your answers are saved. "
+                    "Press Build Strategy to continue."
+                ),
+            }
+
+        return {
+            "success": True,
+            "session_id": session_id,
+            "status": "Active",
+            "question": {
+                "key": next_key,
+                **_question_for(
+                    next_key,
+                    state,
+                ),
+            },
+        }
+
+
     @router.post("/api/strategy-agent/{session_id}/answer")
     def answer_agent(
         session_id: int,
@@ -375,6 +460,100 @@ def register_strategy_agent(app, get_db, get_current_user):
                 },
             }
 
+
+        db.execute("""
+            UPDATE strategy_agent_sessions
+            SET state_json = ?, status = 'Ready', updated_at = ?
+            WHERE id = ? AND user_id = ?
+        """, (
+            json.dumps(state, ensure_ascii=False),
+            now,
+            session_id,
+            user["id"],
+        ))
+
+        db.commit()
+        db.close()
+
+        return {
+            "success": True,
+            "session_id": session_id,
+            "complete": False,
+            "ready_to_build": True,
+            "message": (
+                "I have enough information. "
+                "Press Build Strategy and I will research, review and create the final plan."
+            ),
+        }
+
+
+    @router.post("/api/strategy-agent/{session_id}/build")
+    def build_agent_strategy(
+        session_id: int,
+        user=Depends(get_current_user),
+    ):
+        db = get_db()
+
+        row = db.execute("""
+            SELECT *
+            FROM strategy_agent_sessions
+            WHERE id = ?
+            AND user_id = ?
+        """, (
+            session_id,
+            user["id"],
+        )).fetchone()
+
+        if not row:
+            db.close()
+            raise HTTPException(
+                status_code=404,
+                detail="Agent session not found.",
+            )
+
+        if row["status"] == "Complete" and row["strategy_id"]:
+            strategy_row = db.execute("""
+                SELECT output_json
+                FROM marketing_strategies
+                WHERE id = ?
+                AND user_id = ?
+            """, (
+                row["strategy_id"],
+                user["id"],
+            )).fetchone()
+
+            db.close()
+
+            if not strategy_row:
+                raise HTTPException(
+                    status_code=404,
+                    detail="Saved strategy not found.",
+                )
+
+            result = json.loads(
+                strategy_row["output_json"]
+            )
+
+            return {
+                "success": True,
+                "complete": True,
+                "strategy_id": row["strategy_id"],
+                "status": "Generated",
+                "agent_summary": _agent_summary(result),
+                "strategy": result,
+            }
+
+        state = json.loads(
+            row["state_json"]
+        )
+
+        if _next_key(state):
+            db.close()
+            raise HTTPException(
+                status_code=400,
+                detail="Please answer all agent questions first.",
+            )
+
         defaults = {
             "offer": "",
             "price": 0,
@@ -385,19 +564,61 @@ def register_strategy_agent(app, get_db, get_current_user):
             "has_tracking": False,
             "has_previous_sales": False,
             "has_video_creatives": False,
-            "notes": "Generated through MarketFlow Strategy Agent V1.",
+            "notes": "Generated through MarketFlow Research Strategy Agent V2.1.",
         }
 
-        payload = {**defaults, **state}
+        payload = {
+            **defaults,
+            **state,
+        }
+
         payload["mode"] = "guided"
 
         try:
-            request = StrategyRequest(**payload)
-            result = build_strategy(request)
+            request = StrategyRequest(
+                **payload
+            )
+
+            result = build_strategy(
+                request
+            )
+
+            research = research_business(
+                state,
+                result,
+            )
+
+            review = review_strategy(
+                result,
+                state,
+                research,
+            )
+
+            result = apply_review(
+                result,
+                review,
+            )
+
+            result["research_evidence"] = research
+
         except Exception as exc:
             db.close()
-            detail = getattr(exc, "detail", None) or str(exc)
-            raise HTTPException(status_code=400, detail=detail)
+
+            detail = (
+                getattr(
+                    exc,
+                    "detail",
+                    None,
+                )
+                or str(exc)
+            )
+
+            raise HTTPException(
+                status_code=400,
+                detail=detail,
+            )
+
+        now = datetime.utcnow().isoformat()
 
         cursor = db.execute("""
             INSERT INTO marketing_strategies (
@@ -414,8 +635,14 @@ def register_strategy_agent(app, get_db, get_current_user):
         """, (
             user["id"],
             "agent",
-            json.dumps(request.dict(), ensure_ascii=False),
-            json.dumps(result, ensure_ascii=False),
+            json.dumps(
+                request.dict(),
+                ensure_ascii=False,
+            ),
+            json.dumps(
+                result,
+                ensure_ascii=False,
+            ),
             "Generated",
             None,
             now,
@@ -426,10 +653,13 @@ def register_strategy_agent(app, get_db, get_current_user):
 
         db.execute("""
             UPDATE strategy_agent_sessions
-            SET state_json = ?, status = 'Complete', strategy_id = ?, updated_at = ?
-            WHERE id = ? AND user_id = ?
+            SET
+                status = 'Complete',
+                strategy_id = ?,
+                updated_at = ?
+            WHERE id = ?
+            AND user_id = ?
         """, (
-            json.dumps(state, ensure_ascii=False),
             strategy_id,
             now,
             session_id,
@@ -441,12 +671,12 @@ def register_strategy_agent(app, get_db, get_current_user):
 
         return {
             "success": True,
-            "session_id": session_id,
             "complete": True,
             "strategy_id": strategy_id,
             "status": "Generated",
             "agent_summary": _agent_summary(result),
             "strategy": result,
         }
+
 
     app.include_router(router)

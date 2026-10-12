@@ -222,6 +222,8 @@ export function strategyResultView(response) {
   const creative = strategy.creative_plan || {};
   const automation = strategy.automation_plan || {};
   const scorecard = strategy.channel_scorecard || [];
+  const research = strategy.research_evidence || {};
+  const agentReview = strategy.agent_review || {};
   const profile = strategy.business_profile || creative.business_profile || {};
 
   const list = items =>
@@ -338,6 +340,14 @@ export function strategyResultView(response) {
         <div><small>Campaign type</small><strong>${escapeHtml(strategy.recommended_campaign_type || "")}</strong></div>
         <div><small>Funnel stage</small><strong>${escapeHtml(strategy.funnel_stage || "")}</strong></div>
         <div><small>Optimize for</small><strong>${escapeHtml(strategy.optimization_event || "")}</strong></div>
+      </section>
+
+      <section class="strategy-card">
+        <p class="review-kicker">AGENT RESEARCH & REVIEW</p>
+        <h2>${escapeHtml(agentReview.summary || "Strategy review")}</h2>
+        <p class="strategy-note">Review: ${escapeHtml(agentReview.status || "n/a")} · Confidence: ${escapeHtml(agentReview.confidence || "n/a")} · Sources: ${escapeHtml(agentReview.source_count || 0)}</p>
+        ${(agentReview.corrections || []).length ? `<div class="strategy-review-warnings"><strong>Reviewer flags</strong><ul>${list(agentReview.corrections || [])}</ul></div>` : ""}
+        ${(research.sources || []).length ? `<div class="strategy-research-sources"><h3>Research sources</h3>${(research.sources || []).slice(0,8).map(source => `<a class="strategy-research-source" href="${escapeHtml(source.url || "#")}" target="_blank" rel="noopener noreferrer"><strong>${escapeHtml(source.title || source.url || "Source")}</strong><small>${escapeHtml(source.official_provider ? "Official " + source.official_provider + " source" : source.source || "Web source")}</small>${source.snippet ? `<p>${escapeHtml(source.snippet)}</p>` : ""}</a>`).join("")}</div>` : `<p class="strategy-note">No external pages were reachable in this run; internal rules still produced the strategy.</p>`}
       </section>
 
       <section class="strategy-card">

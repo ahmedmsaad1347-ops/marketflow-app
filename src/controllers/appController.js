@@ -10,6 +10,8 @@ import {
   acceptStrategy,
   startStrategyAgent,
   answerStrategyAgent,
+  buildStrategyAgent,
+  resumeStrategyAgent,
   getDashboardOverview,
   getNotifications,
   markNotificationRead,
@@ -712,6 +714,8 @@ function attachNavigation() {
 }
 
 
+
+
 function attachStrategyAgent() {
   const startButton = document.querySelector("#startStrategyAgentBtn");
   if (!startButton) return;
@@ -719,28 +723,173 @@ function attachStrategyAgent() {
   const chat = document.querySelector("#strategyAgentChat");
   const composer = document.querySelector("#strategyAgentComposer");
 
+  const SESSION_KEY = "marketflow_strategy_agent_session";
+  const CHAT_KEY = "marketflow_strategy_agent_chat";
+  const DRAFT_KEY = "marketflow_strategy_agent_draft";
+
   let sessionId = null;
+
+  const saveChat = () => {
+    const items = Array.from(
+      chat.querySelectorAll(".agent-bubble")
+    ).map(node => ({
+      role: node.classList.contains("user") ? "user" : "agent",
+      text: node.querySelector("p")?.textContent || ""
+    }));
+
+    localStorage.setItem(
+      CHAT_KEY,
+      JSON.stringify(items)
+    );
+  };
+
+  const restoreChat = () => {
+    const raw = localStorage.getItem(CHAT_KEY);
+    if (!raw) return false;
+
+    try {
+      const items = JSON.parse(raw);
+
+      chat.innerHTML = "";
+
+      items.forEach(item => {
+        const article = document.createElement("article");
+        article.className =
+          item.role === "user"
+            ? "agent-bubble user"
+            : "agent-bubble";
+
+        article.innerHTML = `
+          <strong>${item.role === "user" ? "You" : "MarketFlow Agent"}</strong>
+          <p></p>
+        `;
+
+        article.querySelector("p").textContent =
+          String(item.text || "");
+
+        chat.appendChild(article);
+      });
+
+      return items.length > 0;
+    } catch {
+      return false;
+    }
+  };
 
   const addBubble = (role, text) => {
     const article = document.createElement("article");
-    article.className = role === "user" ? "agent-bubble user" : "agent-bubble";
+    article.className =
+      role === "user"
+        ? "agent-bubble user"
+        : "agent-bubble";
+
     article.innerHTML = `
       <strong>${role === "user" ? "You" : "MarketFlow Agent"}</strong>
       <p></p>
     `;
-    article.querySelector("p").textContent = String(text || "");
+
+    article.querySelector("p").textContent =
+      String(text || "");
+
     chat.appendChild(article);
-    article.scrollIntoView({ behavior: "smooth", block: "end" });
+    saveChat();
+
+    article.scrollIntoView({
+      behavior: "smooth",
+      block: "end"
+    });
+  };
+
+  const clearSavedAgent = () => {
+    localStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(CHAT_KEY);
+    localStorage.removeItem(DRAFT_KEY);
+  };
+
+  const showBuildButton = message => {
+    if (message) {
+      addBubble("agent", message);
+    }
+
+    composer.innerHTML = "";
+    localStorage.removeItem(DRAFT_KEY);
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "primary-action";
+    button.textContent = "Build Strategy";
+
+    button.onclick = async () => {
+      button.disabled = true;
+      button.textContent =
+        "Researching, reviewing & building...";
+
+      try {
+        const response =
+          await buildStrategyAgent(sessionId);
+
+        clearSavedAgent();
+
+        const pageContent =
+          document.querySelector("#pageContent");
+
+        pageContent.innerHTML =
+          strategyResultView(response);
+
+        saveAppHistory(
+          "strategy-result",
+          { id: response.strategy_id }
+        );
+
+        setActiveNavigation("strategy");
+        attachNavigation();
+        attachStrategyLaunchers();
+        attachStrategyLast();
+
+        if (
+          typeof attachStrategyHistory
+          === "function"
+        ) {
+          attachStrategyHistory();
+        }
+
+        attachStrategyResultActions();
+        window.scrollTo(0, 0);
+
+      } catch (error) {
+        button.disabled = false;
+        button.textContent = "Build Strategy";
+
+        addBubble(
+          "agent",
+          "I could not build the strategy: "
+          + error.message
+        );
+      }
+    };
+
+    composer.appendChild(button);
   };
 
   const renderQuestion = question => {
     if (!question) return;
 
-    addBubble("agent", question.label);
+    const lastAgentText =
+      chat.lastElementChild
+        ?.querySelector("p")
+        ?.textContent;
+
+    if (lastAgentText !== question.label) {
+      addBubble("agent", question.label);
+    }
+
     composer.innerHTML = "";
 
     const submitValue = async value => {
-      if (value === "" && !question.optional) {
+      if (
+        value === ""
+        && !question.optional
+      ) {
         alert("Please answer this question.");
         return;
       }
@@ -756,91 +905,109 @@ function attachStrategyAgent() {
               : value
       );
 
+      localStorage.removeItem(DRAFT_KEY);
+
       composer.innerHTML = `
-        <button class="primary-action" disabled>
+        <button
+          class="primary-action"
+          disabled
+        >
           Thinking...
         </button>
       `;
 
       try {
-        const response = await answerStrategyAgent(sessionId, value);
-
-        if (response.complete) {
-          addBubble(
-            "agent",
-            response.agent_summary || "I have selected the strategy."
+        const response =
+          await answerStrategyAgent(
+            sessionId,
+            value
           );
 
-          const pageContent = document.querySelector("#pageContent");
-          pageContent.innerHTML = strategyResultView(response);
-
-          saveAppHistory(
-            "strategy-result",
-            { id: response.strategy_id }
+        if (response.ready_to_build) {
+          showBuildButton(
+            response.message
           );
-
-          setActiveNavigation("strategy");
-          attachNavigation();
-          attachStrategyLaunchers();
-          attachStrategyLast();
-
-          if (typeof attachStrategyHistory === "function") {
-            attachStrategyHistory();
-          }
-
-          attachStrategyResultActions();
-          window.scrollTo(0, 0);
           return;
         }
 
-        renderQuestion(response.question);
+        renderQuestion(
+          response.question
+        );
 
       } catch (error) {
         addBubble(
           "agent",
-          "I could not process that answer: " + error.message
+          "I could not process that answer: "
+          + error.message
         );
+
         renderQuestion(question);
       }
     };
 
     if (question.type === "choice") {
-      const grid = document.createElement("div");
-      grid.className = "strategy-agent-options";
+      const grid =
+        document.createElement("div");
 
-      (question.options || []).forEach(option => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "strategy-secondary";
-        button.textContent = option.label;
-        button.onclick = () => submitValue(option.value);
-        grid.appendChild(button);
-      });
+      grid.className =
+        "strategy-agent-options";
+
+      (question.options || [])
+        .forEach(option => {
+          const button =
+            document.createElement("button");
+
+          button.type = "button";
+          button.className =
+            "strategy-secondary";
+          button.textContent =
+            option.label;
+
+          button.onclick =
+            () => submitValue(
+              option.value
+            );
+
+          grid.appendChild(button);
+        });
 
       composer.appendChild(grid);
       return;
     }
 
     if (question.type === "boolean") {
-      const grid = document.createElement("div");
-      grid.className = "strategy-agent-options";
+      const grid =
+        document.createElement("div");
 
-      [["Yes", true], ["No", false]].forEach(([label, value]) => {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "strategy-secondary";
-        button.textContent = label;
-        button.onclick = () => submitValue(value);
-        grid.appendChild(button);
-      });
+      grid.className =
+        "strategy-agent-options";
+
+      [["Yes", true], ["No", false]]
+        .forEach(([label, value]) => {
+          const button =
+            document.createElement("button");
+
+          button.type = "button";
+          button.className =
+            "strategy-secondary";
+          button.textContent = label;
+
+          button.onclick =
+            () => submitValue(value);
+
+          grid.appendChild(button);
+        });
 
       composer.appendChild(grid);
       return;
     }
 
-    const input = document.createElement(
-      question.type === "number" ? "input" : "textarea"
-    );
+    const input =
+      document.createElement(
+        question.type === "number"
+          ? "input"
+          : "textarea"
+      );
 
     if (question.type === "number") {
       input.type = "number";
@@ -848,49 +1015,198 @@ function attachStrategyAgent() {
       input.min = "0";
     }
 
-    input.placeholder = question.placeholder || "";
+    input.placeholder =
+      question.placeholder || "";
 
-    const button = document.createElement("button");
+    const savedDraft =
+      localStorage.getItem(DRAFT_KEY);
+
+    if (savedDraft) {
+      input.value = savedDraft;
+    }
+
+    input.addEventListener(
+      "input",
+      () => {
+        localStorage.setItem(
+          DRAFT_KEY,
+          input.value
+        );
+      }
+    );
+
+    const button =
+      document.createElement("button");
+
     button.type = "button";
-    button.className = "primary-action";
-    button.textContent = question.optional ? "Continue" : "Send";
-    button.onclick = () => submitValue(input.value.trim());
+    button.className =
+      "primary-action";
+
+    button.textContent =
+      question.optional
+        ? "Continue"
+        : "Send";
+
+    button.onclick =
+      () => submitValue(
+        input.value.trim()
+      );
 
     composer.appendChild(input);
     composer.appendChild(button);
 
     if (question.optional) {
-      const skip = document.createElement("button");
+      const skip =
+        document.createElement("button");
+
       skip.type = "button";
-      skip.className = "strategy-secondary";
+      skip.className =
+        "strategy-secondary";
       skip.textContent = "Skip";
-      skip.onclick = () => submitValue("");
+
+      skip.onclick =
+        () => submitValue("");
+
       composer.appendChild(skip);
     }
 
     input.focus();
   };
 
-  startButton.onclick = async () => {
+  const resumeSavedSession = async () => {
+    const savedSession =
+      localStorage.getItem(SESSION_KEY);
+
+    if (!savedSession) {
+      return false;
+    }
+
+    sessionId = savedSession;
+    restoreChat();
+
     startButton.disabled = true;
-    startButton.textContent = "Starting...";
+    startButton.textContent =
+      "Restoring session...";
 
     try {
-      const response = await startStrategyAgent();
-      sessionId = response.session_id;
+      const response =
+        await resumeStrategyAgent(
+          sessionId
+        );
 
-      if (response.message) {
-        addBubble("agent", response.message);
+      startButton.style.display =
+        "none";
+
+      if (
+        response.status === "Complete"
+        && response.strategy_id
+        && response.strategy
+      ) {
+        clearSavedAgent();
+
+        const pageContent =
+          document.querySelector(
+            "#pageContent"
+          );
+
+        pageContent.innerHTML =
+          strategyResultView({
+            strategy_id:
+              response.strategy_id,
+            strategy:
+              response.strategy,
+            status:
+              "Generated"
+          });
+
+        attachNavigation();
+        attachStrategyLaunchers();
+        attachStrategyLast();
+
+        if (
+          typeof attachStrategyHistory
+          === "function"
+        ) {
+          attachStrategyHistory();
+        }
+
+        attachStrategyResultActions();
+        return true;
       }
 
-      renderQuestion(response.question);
+      if (response.ready_to_build) {
+        showBuildButton(
+          response.message
+        );
+        return true;
+      }
+
+      renderQuestion(
+        response.question
+      );
+
+      return true;
+
+    } catch (error) {
+      clearSavedAgent();
+
+      startButton.disabled = false;
+      startButton.style.display = "";
+      startButton.textContent =
+        "Start Strategy Agent";
+
+      addBubble(
+        "agent",
+        "I could not restore the saved session. Start a new one."
+      );
+
+      return false;
+    }
+  };
+
+  startButton.onclick = async () => {
+    clearSavedAgent();
+
+    startButton.disabled = true;
+    startButton.textContent =
+      "Starting...";
+
+    try {
+      const response =
+        await startStrategyAgent();
+
+      sessionId =
+        response.session_id;
+
+      localStorage.setItem(
+        SESSION_KEY,
+        String(sessionId)
+      );
+
+      startButton.style.display =
+        "none";
+
+      if (response.message) {
+        addBubble(
+          "agent",
+          response.message
+        );
+      }
+
+      renderQuestion(
+        response.question
+      );
 
     } catch (error) {
       startButton.disabled = false;
-      startButton.textContent = "Start Strategy Agent";
+      startButton.textContent =
+        "Start Strategy Agent";
+
       alert(error.message);
     }
   };
+
+  resumeSavedSession();
 }
 
 function attachCampaignForm() {

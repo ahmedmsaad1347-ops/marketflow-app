@@ -29,3 +29,11 @@ marketflow_creative_engine_v1_installer.py
 marketflow_v31_creative_v13_strategy_history.py
 marketflow_strategy_agent_v1_installer.py
 marketflow_strategy_agent_import_fix.py
+.agent_v2_completion_fix_*/
+.agent_v21_single_build_backup_*/
+.agent_persistence_backup_*/
+.research_agent_v2_backup_*/
+marketflow_research_strategy_agent_v2_installer.py
+marketflow_agent_v2_completion_fix.py
+marketflow_agent_v21_single_build_button.py
+marketflow_agent_session_persistence_fix.py

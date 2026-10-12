@@ -835,17 +835,16 @@ export function messagesView() {
 export function aiView() {
   return `
     <section class="page strategy-agent-page">
-      <p class="review-kicker">MARKETFLOW STRATEGY AGENT V1</p>
+      <p class="review-kicker">MARKETFLOW RESEARCH STRATEGY AGENT V2</p>
       <h1>Your built-in marketing strategist</h1>
       <p class="subtitle">
-        No external AI API. The agent uses MarketFlow business understanding,
-        economics and campaign rules to question the brief and choose the strategy.
+        No OpenAI API. The agent gathers the brief, researches public web sources, reviews the Strategy Engine result and then shows the final plan.
       </p>
 
       <section class="strategy-agent-card">
         <div class="strategy-agent-status">
           <span class="status-dot"></span>
-          Built-in decision agent
+          Built-in research & decision agent
         </div>
 
         <div id="strategyAgentChat" class="strategy-agent-chat">

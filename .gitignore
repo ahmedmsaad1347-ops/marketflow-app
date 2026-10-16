@@ -37,3 +37,11 @@ marketflow_research_strategy_agent_v2_installer.py
 marketflow_agent_v2_completion_fix.py
 marketflow_agent_v21_single_build_button.py
 marketflow_agent_session_persistence_fix.py
+
+# Local authentication email previews contain private single-use links.
+.marketflow-mail/
+.env.*
+!.env.example
+.marketflow-backups/
+marketflow.db-wal
+marketflow.db-shm

@@ -6,13 +6,15 @@ and creates a test account/session/strategy in the selected API database.
 """
 import argparse
 import json
+import os
 import time
 from pathlib import Path
 
 from playwright.sync_api import expect, sync_playwright
+from browser_auth_helpers import signup_and_verify
 
 
-def run(api, frontend, output):
+def run(api, frontend, output, outbox):
     answers = {
         'business_name': 'FlowDesk', 'product': 'AI customer support software for small businesses',
         'offer': '14-day paid trial', 'country': 'Egypt',
@@ -25,14 +27,14 @@ def run(api, frontend, output):
     }
     report = {}
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(headless=True, **({'executable_path': os.environ['MF_TEST_CHROMIUM']} if os.getenv('MF_TEST_CHROMIUM') else {}))
         context = browser.new_context()
         page = context.new_page()
         errors = []
         page.on('pageerror', lambda error: errors.append(str(error)))
         page.route('http://localhost:3000/api/**',
                    lambda route: route.continue_(url=route.request.url.replace('http://localhost:3000', api)))
-        response = context.request.post(api + '/api/auth/signup', data={
+        response = signup_and_verify(context, api, outbox, data={
             'name': 'V2.1 Browser Test', 'email': f'v21-{time.time_ns()}@example.com',
             'password': 'ExamplePassword123!',
         })

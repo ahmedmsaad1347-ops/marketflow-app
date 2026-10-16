@@ -1,9 +1,6 @@
 import os
 import sqlite3
 import secrets
-import hashlib
-import hmac
-import base64
 import json
 import urllib.parse
 import urllib.request
@@ -20,30 +17,31 @@ from fastapi import (
     Depends
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, JSONResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi.exception_handlers import request_validation_exception_handler
 from pydantic import BaseModel, Field
+from backend.auth import AuthConfig, AuthService
 
 load_dotenv()
 
 DATABASE = "marketflow.db"
-SESSION_COOKIE = "marketflow_session"
-SESSION_DAYS = 30
+AUTH_CONFIG = AuthConfig.from_env()
 
 app = FastAPI(
     title="MarketFlow API",
     version="1.2.0"
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173"
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"]
-)
+
+
+@app.exception_handler(RequestValidationError)
+async def safe_validation_error(request, error):
+    if request.url.path.startswith(('/api/auth/', '/api/account/')):
+        # Do not echo passwords, reset tokens or validation context in API errors.
+        return JSONResponse({'detail': [{key: item[key] for key in ('loc', 'msg', 'type')}
+                                        for item in error.errors()]}, status_code=422)
+    return await request_validation_exception_handler(request, error)
 
 
 def get_db():
@@ -377,195 +375,19 @@ def init_db():
     db.close()
 
 
+auth = AuthService(get_db, AUTH_CONFIG)
 init_db()
-
-
-def hash_password(password, salt=None):
-    if salt is None:
-        salt_bytes = secrets.token_bytes(32)
-        salt = base64.urlsafe_b64encode(
-            salt_bytes
-        ).decode()
-    else:
-        salt_bytes = base64.urlsafe_b64decode(
-            salt.encode()
-        )
-
-    result = hashlib.pbkdf2_hmac(
-        "sha256",
-        password.encode(),
-        salt_bytes,
-        250000
-    )
-
-    password_hash = base64.urlsafe_b64encode(
-        result
-    ).decode()
-
-    return password_hash, salt
-
-
-def verify_password(password, stored_hash, salt):
-    calculated_hash, _ = hash_password(
-        password,
-        salt
-    )
-
-    return hmac.compare_digest(
-        calculated_hash,
-        stored_hash
-    )
-
-
-def hash_session_token(token):
-    return hashlib.sha256(
-        token.encode()
-    ).hexdigest()
-
-
-def create_session(db, user_id):
-    token = secrets.token_urlsafe(48)
-
-    token_hash = hash_session_token(token)
-
-    now = datetime.utcnow()
-
-    expires = now + timedelta(
-        days=SESSION_DAYS
-    )
-
-    db.execute("""
-        INSERT INTO sessions (
-            user_id,
-            token_hash,
-            expires_at,
-            created_at
-        )
-        VALUES (?, ?, ?, ?)
-    """, (
-        user_id,
-        token_hash,
-        expires.isoformat(),
-        now.isoformat()
-    ))
-
-    db.commit()
-
-    return token
-
-
-def set_session_cookie(response, token):
-    response.set_cookie(
-        key=SESSION_COOKIE,
-        value=token,
-        httponly=True,
-        samesite="lax",
-        secure=False,
-        max_age=60 * 60 * 24 * SESSION_DAYS,
-        path="/"
-    )
-
-
-def get_current_user(request: Request):
-    token = request.cookies.get(
-        SESSION_COOKIE
-    )
-
-    if not token:
-        raise HTTPException(
-            status_code=401,
-            detail="Not authenticated"
-        )
-
-    token_hash = hash_session_token(token)
-
-    db = get_db()
-
-    row = db.execute("""
-        SELECT
-            users.id,
-            users.name,
-            users.email,
-            sessions.expires_at
-        FROM sessions
-        JOIN users
-        ON users.id = sessions.user_id
-        WHERE sessions.token_hash = ?
-    """, (token_hash,)).fetchone()
-
-    db.close()
-
-    if not row:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid session"
-        )
-
-    if datetime.fromisoformat(
-        row["expires_at"]
-    ) < datetime.utcnow():
-
-        raise HTTPException(
-            status_code=401,
-            detail="Session expired"
-        )
-
-    return {
-        "id": row["id"],
-        "name": row["name"],
-        "email": row["email"]
-    }
-
-
-class SignupData(BaseModel):
-    name: str = Field(
-        min_length=2,
-        max_length=80
-    )
-
-    email: str = Field(
-        min_length=5,
-        max_length=150
-    )
-
-    password: str = Field(
-        min_length=8,
-        max_length=128
-    )
-
-
-class LoginData(BaseModel):
-    email: str
-    password: str
-
-
-class ProfileUpdateData(BaseModel):
-    name: str = Field(
-        min_length=2,
-        max_length=80
-    )
-
-    email: str = Field(
-        min_length=5,
-        max_length=150
-    )
-
-    current_password: str = Field(
-        min_length=8,
-        max_length=128
-    )
-
-
-class PasswordChangeData(BaseModel):
-    current_password: str = Field(
-        min_length=8,
-        max_length=128
-    )
-
-    new_password: str = Field(
-        min_length=8,
-        max_length=128
-    )
+auth.migrate()
+get_current_user = auth.current_user
+auth.register(app)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=([AUTH_CONFIG.frontend] if AUTH_CONFIG.production else
+                   list({AUTH_CONFIG.frontend, "http://localhost:5173", "http://127.0.0.1:5173"})),
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=["Content-Type", "X-CSRF-Token"]
+)
 
 
 class CampaignData(BaseModel):
@@ -607,362 +429,6 @@ def health():
         "database": "online",
         "auth": "online",
         "status": "online"
-    }
-
-
-@app.post("/api/auth/signup")
-def signup(
-    data: SignupData,
-    response: Response
-):
-    email = data.email.strip().lower()
-    name = data.name.strip()
-
-    db = get_db()
-
-    exists = db.execute(
-        "SELECT id FROM users WHERE email = ?",
-        (email,)
-    ).fetchone()
-
-    if exists:
-        db.close()
-
-        raise HTTPException(
-            status_code=409,
-            detail="Email already registered"
-        )
-
-    password_hash, salt = hash_password(
-        data.password
-    )
-
-    cursor = db.execute("""
-        INSERT INTO users (
-            name,
-            email,
-            password_hash,
-            password_salt,
-            created_at
-        )
-        VALUES (?, ?, ?, ?, ?)
-    """, (
-        name,
-        email,
-        password_hash,
-        salt,
-        datetime.utcnow().isoformat()
-    ))
-
-    user_id = cursor.lastrowid
-
-    db.commit()
-
-    token = create_session(
-        db,
-        user_id
-    )
-
-    db.close()
-
-    set_session_cookie(
-        response,
-        token
-    )
-
-    return {
-        "success": True,
-        "user": {
-            "id": user_id,
-            "name": name,
-            "email": email
-        }
-    }
-
-
-@app.post("/api/auth/login")
-def login(
-    data: LoginData,
-    response: Response
-):
-    email = data.email.strip().lower()
-
-    db = get_db()
-
-    user = db.execute("""
-        SELECT *
-        FROM users
-        WHERE email = ?
-    """, (email,)).fetchone()
-
-    if not user:
-        db.close()
-
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid email or password"
-        )
-
-    if not verify_password(
-        data.password,
-        user["password_hash"],
-        user["password_salt"]
-    ):
-        db.close()
-
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid email or password"
-        )
-
-    token = create_session(
-        db,
-        user["id"]
-    )
-
-    db.close()
-
-    set_session_cookie(
-        response,
-        token
-    )
-
-    return {
-        "success": True,
-        "user": {
-            "id": user["id"],
-            "name": user["name"],
-            "email": user["email"]
-        }
-    }
-
-
-@app.get("/api/auth/me")
-def auth_me(
-    user=Depends(get_current_user)
-):
-    return {
-        "success": True,
-        "user": user
-    }
-
-
-@app.post("/api/auth/logout")
-def logout(
-    request: Request,
-    response: Response
-):
-    token = request.cookies.get(
-        SESSION_COOKIE
-    )
-
-    if token:
-        db = get_db()
-
-        db.execute(
-            "DELETE FROM sessions WHERE token_hash = ?",
-            (hash_session_token(token),)
-        )
-
-        db.commit()
-        db.close()
-
-    response.delete_cookie(
-        SESSION_COOKIE,
-        path="/"
-    )
-
-    return {
-        "success": True
-    }
-
-
-@app.put("/api/account/profile")
-def update_profile(
-    data: ProfileUpdateData,
-    user=Depends(get_current_user)
-):
-    name = data.name.strip()
-    email = data.email.strip().lower()
-
-    if len(name) < 2:
-        raise HTTPException(
-            status_code=400,
-            detail="Name is too short"
-        )
-
-    if (
-        "@" not in email
-        or "." not in email.split("@")[-1]
-    ):
-        raise HTTPException(
-            status_code=400,
-            detail="Enter a valid email address"
-        )
-
-    db = get_db()
-
-    account = db.execute("""
-        SELECT *
-        FROM users
-        WHERE id = ?
-    """, (
-        user["id"],
-    )).fetchone()
-
-    if not account:
-        db.close()
-
-        raise HTTPException(
-            status_code=404,
-            detail="Account not found"
-        )
-
-    if not verify_password(
-        data.current_password,
-        account["password_hash"],
-        account["password_salt"]
-    ):
-        db.close()
-
-        raise HTTPException(
-            status_code=401,
-            detail="Current password is incorrect"
-        )
-
-    duplicate = db.execute("""
-        SELECT id
-        FROM users
-        WHERE email = ?
-        AND id != ?
-    """, (
-        email,
-        user["id"]
-    )).fetchone()
-
-    if duplicate:
-        db.close()
-
-        raise HTTPException(
-            status_code=409,
-            detail="Email is already in use"
-        )
-
-    db.execute("""
-        UPDATE users
-        SET
-            name = ?,
-            email = ?
-        WHERE id = ?
-    """, (
-        name,
-        email,
-        user["id"]
-    ))
-
-    db.commit()
-    db.close()
-
-    return {
-        "success": True,
-        "user": {
-            "id": user["id"],
-            "name": name,
-            "email": email
-        }
-    }
-
-
-@app.put("/api/account/password")
-def change_password(
-    data: PasswordChangeData,
-    request: Request,
-    response: Response,
-    user=Depends(get_current_user)
-):
-    if (
-        data.current_password ==
-        data.new_password
-    ):
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "New password must be "
-                "different from the current password"
-            )
-        )
-
-    db = get_db()
-
-    account = db.execute("""
-        SELECT *
-        FROM users
-        WHERE id = ?
-    """, (
-        user["id"],
-    )).fetchone()
-
-    if not account:
-        db.close()
-
-        raise HTTPException(
-            status_code=404,
-            detail="Account not found"
-        )
-
-    if not verify_password(
-        data.current_password,
-        account["password_hash"],
-        account["password_salt"]
-    ):
-        db.close()
-
-        raise HTTPException(
-            status_code=401,
-            detail="Current password is incorrect"
-        )
-
-    password_hash, salt = hash_password(
-        data.new_password
-    )
-
-    db.execute("""
-        UPDATE users
-        SET
-            password_hash = ?,
-            password_salt = ?
-        WHERE id = ?
-    """, (
-        password_hash,
-        salt,
-        user["id"]
-    ))
-
-    # Log out all old sessions
-    db.execute("""
-        DELETE FROM sessions
-        WHERE user_id = ?
-    """, (
-        user["id"],
-    ))
-
-    db.commit()
-
-    # Create one fresh session
-    new_token = create_session(
-        db,
-        user["id"]
-    )
-
-    db.close()
-
-    set_session_cookie(
-        response,
-        new_token
-    )
-
-    return {
-        "success": True
     }
 
 

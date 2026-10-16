@@ -1,20 +1,14 @@
 import "./styles/main.css";
 import "./styles/landing.css";
 import "./styles/strategy.css";
+import "./styles/auth.css";
 
 import { startApp } from "./controllers/appController.js";
 import { landingView } from "./views/landingView.js";
 import { attachLandingInteractions } from './controllers/landingController.js';
-import {
-  loginPageView,
-  signupPageView
-} from "./views/authView.js";
-
-import {
-  loginUser,
-  signupUser,
-  getCurrentUser
-} from "./services/api.js";
+import { loginPageView, signupPageView, verifyEmailView, forgotPasswordView, resetPasswordView } from "./views/authView.js";
+import { attachAuthInteractions } from "./controllers/authController.js";
+import { getCurrentUser } from "./services/api.js";
 
 const app = document.querySelector("#app");
 
@@ -29,17 +23,14 @@ export async function renderRoute() {
     return;
   }
 
-  if (path === "/login") {
-    app.innerHTML = loginPageView();
+  const authViews = { '/login': loginPageView, '/signup': signupPageView,
+    '/verify-email': verifyEmailView, '/forgot-password': forgotPasswordView, '/reset-password': resetPasswordView };
+  if (authViews[path]) {
+    app.innerHTML = authViews[path]();
+    document.title = `${path === '/signup' ? 'Create your account' : path === '/login' ? 'Sign in' : 'Secure your account'} · MarketFlow`;
     attachRouteButtons();
-    attachLogin();
-    return;
-  }
-
-  if (path === "/signup") {
-    app.innerHTML = signupPageView();
-    attachRouteButtons();
-    attachSignup();
+    attachAuthInteractions(navigate);
+    window.scrollTo(0, 0);
     return;
   }
 
@@ -82,80 +73,12 @@ function attachRouteButtons() {
     .querySelectorAll("[data-route]")
     .forEach(button => {
 
-      button.onclick = () => {
+      button.onclick = event => {
+        event.preventDefault();
         navigate(button.dataset.route);
       };
 
     });
-}
-
-
-function attachLogin() {
-  const form =
-    document.querySelector("#realLoginForm");
-
-  if (!form) return;
-
-  form.addEventListener("submit", async event => {
-    event.preventDefault();
-
-    const data = new FormData(form);
-    const error = document.querySelector("#authError");
-    const button = form.querySelector('button[type="submit"]');
-
-    error.textContent = "";
-    button.disabled = true;
-    button.textContent = "Signing in...";
-
-    try {
-      await loginUser({
-        email: data.get("email"),
-        password: data.get("password")
-      });
-
-      navigate("/app", { replace: true });
-
-    } catch (err) {
-      error.textContent = err.message;
-      button.disabled = false;
-      button.textContent = "Sign in";
-    }
-  });
-}
-
-
-function attachSignup() {
-  const form =
-    document.querySelector("#signupForm");
-
-  if (!form) return;
-
-  form.addEventListener("submit", async event => {
-    event.preventDefault();
-
-    const data = new FormData(form);
-    const error = document.querySelector("#authError");
-    const button = form.querySelector('button[type="submit"]');
-
-    error.textContent = "";
-    button.disabled = true;
-    button.textContent = "Creating account...";
-
-    try {
-      await signupUser({
-        name: data.get("name"),
-        email: data.get("email"),
-        password: data.get("password")
-      });
-
-      navigate("/app", { replace: true });
-
-    } catch (err) {
-      error.textContent = err.message;
-      button.disabled = false;
-      button.textContent = "Create account";
-    }
-  });
 }
 
 

@@ -2,3 +2,7 @@ fastapi==0.115.12
 pydantic==1.10.24
 uvicorn
 python-dotenv
+
+# Pure Python dependencies remain compatible with Termux.
+httpx==0.28.1
+email-validator==2.3.0

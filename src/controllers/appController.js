@@ -84,17 +84,30 @@ async function showApp(user) {
     document.querySelector("#logoutBtn");
 
   logoutButton.addEventListener("click", async () => {
+    logoutButton.disabled = true;
     try {
       await logoutUser();
-    } catch {}
-
+    } catch (error) {
+      logoutButton.disabled = false;
+      logoutButton.textContent = "Retry sign out";
+      let message = document.querySelector('#logoutError');
+      if (!message) {
+        message = document.createElement('p');
+        message.id = 'logoutError';
+        message.setAttribute('role', 'alert');
+        logoutButton.after(message);
+      }
+      message.textContent = "Sign-out could not be confirmed. Check your connection and retry.";
+      return;
+    }
     currentUser = null;
-
-    window.history.replaceState({}, "", "/");
-
-    window.dispatchEvent(
-      new PopStateEvent("popstate")
-    );
+    try {
+      for (const storage of [localStorage, sessionStorage]) {
+        Object.keys(storage).filter(key => key.startsWith('marketflow_')).forEach(key => storage.removeItem(key));
+      }
+    } catch { /* Server-side logout already succeeded, even if storage is unavailable. */ }
+    window.history.replaceState({}, "", "/login");
+    window.dispatchEvent(new PopStateEvent("popstate"));
   });
 
   const state =

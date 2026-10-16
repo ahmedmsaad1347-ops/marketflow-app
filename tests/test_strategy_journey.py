@@ -10,6 +10,7 @@ from backend.google_ads_capabilities import save_currency_constant, load_currenc
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
+from auth_helpers import signup_verified
 
 
 class StrategyJourneyTests(unittest.TestCase):
@@ -27,8 +28,10 @@ class StrategyJourneyTests(unittest.TestCase):
         previous = os.getcwd()
         try:
             os.chdir(cls.directory.name)
-            cls.main = importlib.import_module('backend.main')
+            cls.main = importlib.reload(importlib.import_module('backend.main'))
             cls.main.DATABASE = os.path.join(cls.directory.name, 'marketflow.db')
+            cls.main.init_db()
+            cls.main.auth.migrate()
         finally:
             os.chdir(previous)
 
@@ -38,7 +41,7 @@ class StrategyJourneyTests(unittest.TestCase):
 
     def test_google_message_analytics_and_currency_snapshot(self):
         with TestClient(self.main.app) as client:
-            response = client.post('/api/auth/signup', json={
+            response = signup_verified(client, self.main, json={
                 'name': 'Measurement test', 'email': 'measurement@example.com',
                 'password': 'ExamplePassword123!',
             })
@@ -74,7 +77,7 @@ class StrategyJourneyTests(unittest.TestCase):
         payload = self.revision_payload()
         with TestClient(self.main.app) as owner, TestClient(self.main.app) as other:
             for client, name in [(owner, 'editor'), (other, 'editor-other')]:
-                self.assertEqual(client.post('/api/auth/signup', json={
+                self.assertEqual(signup_verified(client, self.main, json={
                     'name': name, 'email': name + '@example.com', 'password': 'ExamplePassword123!',
                 }).status_code, 200)
             sid = owner.post('/api/strategy-agent/start').json()['session_id']
@@ -105,7 +108,7 @@ class StrategyJourneyTests(unittest.TestCase):
 
     def test_editor_rejects_invalid_brief_and_building_session(self):
         with TestClient(self.main.app) as client:
-            client.post('/api/auth/signup', json={'name': 'Invalid edit',
+            signup_verified(client, self.main, json={'name': 'Invalid edit',
                 'email': 'invalid-edit@example.com', 'password': 'ExamplePassword123!'})
             payload = self.revision_payload()
             self.assertEqual(client.post('/api/strategy-agent/revise', json={**payload, 'total_budget': -1}).status_code, 422)
@@ -133,7 +136,7 @@ class StrategyJourneyTests(unittest.TestCase):
         }
         with TestClient(self.main.app) as owner, TestClient(self.main.app) as other:
             for client, name in [(owner, 'owner'), (other, 'other')]:
-                response = client.post('/api/auth/signup', json={
+                response = signup_verified(client, self.main, json={
                     'name': name, 'email': name + '@example.com',
                     'password': 'ExamplePassword123!',
                 })

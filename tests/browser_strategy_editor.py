@@ -4,12 +4,14 @@ Run with the same frontend/API setup as browser_agent_v21.py.
 """
 import argparse
 import json
+import os
 import time
 from pathlib import Path
 from playwright.sync_api import expect, sync_playwright
+from browser_auth_helpers import signup_and_verify
 
 
-def run(api, frontend, output):
+def run(api, frontend, output, outbox):
     original = dict(business_name='FlowDesk AI', product='AI customer support SaaS software',
         offer='14-day paid trial', country='Egypt', audience='Small business owners',
         objective='sales', demand_type='discovery', sales_channel='website',
@@ -17,9 +19,9 @@ def run(api, frontend, output):
         gross_margin_percent=70, extra_variable_cost_per_order=50,
         has_website=True, has_tracking=True, has_previous_sales=True)
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(headless=True, **({'executable_path': os.environ['MF_TEST_CHROMIUM']} if os.getenv('MF_TEST_CHROMIUM') else {}))
         context = browser.new_context(viewport={'width': 390, 'height': 844}, is_mobile=True)
-        response = context.request.post(api + '/api/auth/signup', data=dict(
+        response = signup_and_verify(context, api, outbox, data=dict(
             name='Editor browser', email=f'editor-{time.time_ns()}@example.com', password='ExamplePassword123!'))
         assert response.ok, response.text()
         session = context.request.post(api + '/api/strategy-agent/start').json()['session_id']
@@ -89,5 +91,6 @@ if __name__ == '__main__':
     parser.add_argument('--api', default='http://localhost:3000')
     parser.add_argument('--frontend', default='http://localhost:5173')
     parser.add_argument('--output', default='/tmp/marketflow-editor-report')
+    parser.add_argument('--outbox', required=True, help='Development API AUTH_OUTBOX_DIR')
     args = parser.parse_args()
-    run(args.api, args.frontend, args.output)
+    run(args.api, args.frontend, args.output, args.outbox)

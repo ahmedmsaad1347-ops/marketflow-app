@@ -1444,13 +1444,14 @@ export function settingsView(
             <h2>Profile</h2>
 
             <p>
-              Update your account details.
+              Update your display name. Your verified email identifies this account.
             </p>
           </div>
 
           <span>👤</span>
         </div>
 
+        ${user.password_enabled === false ? '<p class="subtitle">You signed in with a social account. <a href="/forgot-password">Set an account password</a> to manage your profile or use email sign-in.</p>' : ''}
         <form
           id="profileSettingsForm"
           class="campaign-form"
@@ -1475,6 +1476,8 @@ export function settingsView(
             <input
               name="email"
               type="email"
+              readonly
+              aria-readonly="true"
               value="${campaignEscape(
                 user.email || ""
               )}"
@@ -1518,7 +1521,7 @@ export function settingsView(
             <h2>Security</h2>
 
             <p>
-              Change your account password.
+              Use a unique passphrase with at least 15 characters.
             </p>
           </div>
 
@@ -1548,7 +1551,8 @@ export function settingsView(
               name="new_password"
               type="password"
               autocomplete="new-password"
-              minlength="8"
+              minlength="15"
+              maxlength="128"
               required
             >
           </label>
@@ -1560,7 +1564,8 @@ export function settingsView(
               name="confirm_password"
               type="password"
               autocomplete="new-password"
-              minlength="8"
+              minlength="15"
+              maxlength="128"
               required
             >
           </label>

@@ -1,23 +1,46 @@
-const API_BASE = "http://localhost:3000";
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || "http://localhost:3000").replace(/\/$/, "");
+let authConfigPromise;
 
-async function request(path, options = {}) {
+export function getAuthConfig() {
+  if (!authConfigPromise) {
+    authConfigPromise = fetch(`${API_BASE}/api/auth/config`, {credentials: 'include', cache: 'no-store'})
+      .then(async response => {
+        if (!response.ok) throw new Error('Cannot load sign-in options');
+        return response.json();
+      }).catch(error => { authConfigPromise = undefined; throw error; });
+  }
+  return authConfigPromise;
+}
+
+export function providerSignInURL(provider) {
+  return `${API_BASE}/api/auth/${encodeURIComponent(provider)}/start`;
+}
+
+export function authAction(action, data) {
+  return request(`/api/auth/${action}`, {method: 'POST', body: JSON.stringify(data)});
+}
+
+async function request(path, options = {}, retry = true) {
+  const unsafe = !['GET', 'HEAD', 'OPTIONS'].includes((options.method || 'GET').toUpperCase());
+  const csrf = unsafe ? (await getAuthConfig()).csrf_token : '';
   const response = await fetch(`${API_BASE}${path}`, {
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {})
-    },
-    ...options
+    ...options,
+    credentials: 'include',
+    headers: {'Content-Type': 'application/json', ...(options.headers || {}), ...(unsafe ? {'X-CSRF-Token': csrf} : {})}
   });
-
-  const data = await response.json();
-
+  let data;
+  try { data = await response.json(); }
+  catch { throw new Error('Cannot reach MarketFlow. Check your connection and try again.'); }
   if (!response.ok) {
-    const error = new Error(data.detail || "MarketFlow API request failed");
+    if (unsafe && retry && response.status === 403 && data.code === 'csrf_failed') {
+      authConfigPromise = undefined;
+      return request(path, options, false);
+    }
+    const detail = Array.isArray(data.detail) ? data.detail.map(item => item.msg).join('. ') : data.detail;
+    const error = new Error(detail || 'MarketFlow API request failed');
     error.status = response.status;
     throw error;
   }
-
   return data;
 }
 

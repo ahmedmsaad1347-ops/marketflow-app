@@ -1,5 +1,14 @@
 # MarketFlow implementation handoff — 2026-10-16
 
+## Account access update
+
+Professional responsive account screens, verified email signup, recovery, server-side Google/Facebook login,
+CSRF checks and rate-limited sessions are implemented. See [authentication setup](authentication-setup.md)
+for local email previews, migration behavior, production configuration and provider activation.
+Live provider credentials/SMTP/public HTTPS are still required; social buttons remain disabled until configured.
+Validation: 61 unit/API checks, production frontend build, browser account journey at 320/390/768/1440px,
+and the saved strategy edit/rebuild regression. Provider and SMTP tests use mocks/local file transport.
+
 ## Sources and scope
 
 Reviewed GitHub `main` at `848a81a` (2026-10-12, “Upgrade Research Strategy

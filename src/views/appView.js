@@ -857,6 +857,7 @@ export function aiView() {
           </article>
         </div>
 
+        <button id="reviewAgentAnswersBtn" class="strategy-secondary" type="button" hidden>Review / edit answers</button>
         <div id="strategyAgentComposer" class="strategy-agent-composer">
           <button id="startStrategyAgentBtn" class="primary-action">
             Start Strategy Agent

@@ -4,6 +4,7 @@ import "./styles/strategy.css";
 
 import { startApp } from "./controllers/appController.js";
 import { landingView } from "./views/landingView.js";
+import { attachLandingInteractions } from './controllers/landingController.js';
 import {
   loginPageView,
   signupPageView
@@ -23,6 +24,7 @@ export async function renderRoute() {
   if (path === "/") {
     app.innerHTML = landingView();
     attachRouteButtons();
+    attachLandingInteractions();
     window.scrollTo(0, 0);
     return;
   }

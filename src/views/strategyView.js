@@ -225,6 +225,18 @@ export function strategyResultView(response) {
   const research = strategy.research_evidence || {};
   const agentReview = strategy.agent_review || {};
   const profile = strategy.business_profile || creative.business_profile || {};
+  const sources = research.sources || [];
+  const challengeSource = source => /checking your browser|we think you might be a bot|verify (that )?you are human|enable javascript and cookies to continue|sorry, you have been blocked|unusual traffic from your computer network/i.test(source.snippet || "");
+  const usableSources = sources.filter(source =>
+    source.retrieval_status === "retrieved" && source.snippet && !challengeSource(source)
+  );
+  const excludedSources = sources.filter(source => !usableSources.includes(source));
+  const sourceUrl = value => /^https?:\/\//i.test(value || "") ? escapeHtml(value) : "#";
+  const excludedReason = source => challengeSource(source) ? "The site returned a browser or bot-verification page." : source.retrieval_reason || ({
+    blocked: "The site returned a browser or bot-verification page.",
+    insufficient_content: "No substantial page text could be extracted.",
+    unavailable: "The page could not be retrieved."
+  }[source.retrieval_status] || "Content has not been verified.");
 
   const list = items =>
     (items || []).length
@@ -295,7 +307,7 @@ export function strategyResultView(response) {
 
   return `
     <section class="page strategy-result-page">
-      <button data-strategy-start="guided" class="back-button">← Adjust answers</button>
+      <button data-edit-strategy="${escapeHtml(response.strategy_id)}" class="back-button">← Edit answers & rebuild</button>
 
       <p class="review-kicker">MARKETFLOW STRATEGY ENGINE V3</p>
 
@@ -352,11 +364,22 @@ export function strategyResultView(response) {
       <section class="strategy-card">
         <p class="review-kicker">AGENT RESEARCH & REVIEW</p>
         <h2>${escapeHtml(agentReview.summary || "Strategy review")}</h2>
-        <p class="strategy-note">Review: ${escapeHtml(agentReview.status || "n/a")} · Confidence: ${escapeHtml(agentReview.confidence || "n/a")} · Retrieved sources: ${escapeHtml(agentReview.source_count || 0)}</p>
+        <p class="strategy-note">Review: ${escapeHtml(agentReview.status || "n/a")} · Confidence: ${escapeHtml(agentReview.confidence || "n/a")} · Usable page extracts: ${escapeHtml(usableSources.length)}</p>
         ${(agentReview.corrections || []).length ? `<div class="strategy-review-warnings"><strong>Reviewer flags</strong><ul>${list(agentReview.corrections || [])}</ul></div>` : ""}
         ${(agentReview.applied_corrections || []).length ? `<div class="strategy-review-warnings"><strong>Corrections applied</strong><ul>${list(agentReview.applied_corrections.map(change => `${change.field}: ${change.previous_value || "(empty)"} → ${change.value}. ${change.reason}`))}</ul></div>` : ""}
         ${(agentReview.evidence_gaps || []).length ? `<div class="strategy-review-warnings"><strong>Evidence to verify</strong><ul>${list(agentReview.evidence_gaps)}</ul></div>` : ""}
-        ${(research.sources || []).length ? `<div class="strategy-research-sources"><h3>Research sources</h3>${(research.sources || []).slice(0,8).map(source => `<a class="strategy-research-source" href="${escapeHtml(source.url || "#")}" target="_blank" rel="noopener noreferrer"><strong>${escapeHtml(source.title || source.url || "Source")}</strong><small>${escapeHtml(source.official_provider ? "Official " + source.official_provider + " source" : source.source || "Web source")} · ${source.snippet && source.retrieval_status !== "unavailable" ? "Page content retrieved" : "Page content unavailable"}</small>${source.snippet ? `<p>${escapeHtml(source.snippet)}</p>` : ""}</a>`).join("")}</div>` : `<p class="strategy-note">No external pages were reachable in this run; internal rules still produced the strategy.</p>`}
+        <p class="strategy-note">Business background pages do not verify the platform recommendation. Retrieved text still needs review for relevance.</p>
+        ${usableSources.length ? `<div class="strategy-research-sources"><h3>Usable research sources</h3>${usableSources.map(source => `
+          <article class="strategy-research-source">
+            <a href="${sourceUrl(source.url)}" target="_blank" rel="noopener noreferrer"><strong>${escapeHtml(source.title || source.url || "Source")}</strong></a>
+            <small>${escapeHtml(source.official_provider ? "Official " + source.official_provider + " source" : source.purpose || "Business background")}</small>
+            <details><summary>Read extracted text</summary><p>${escapeHtml(source.snippet)}</p></details>
+          </article>`).join("")}</div>` : `<p class="strategy-note">No usable page content was extracted in this run; internal rules still produced the strategy.</p>`}
+        ${excludedSources.length ? `<details class="strategy-research-excluded"><summary>Sources not used (${excludedSources.length})</summary>${excludedSources.map(source => `
+          <article class="strategy-research-source">
+            <a href="${sourceUrl(source.url)}" target="_blank" rel="noopener noreferrer"><strong>${escapeHtml(source.title || source.url || "Source")}</strong></a>
+            <p>${escapeHtml(excludedReason(source))}</p>
+          </article>`).join("")}</details>` : ""}
       </section>
 
       <section class="strategy-card">
@@ -408,6 +431,7 @@ export function strategyResultView(response) {
         <h2>${escapeHtml(budget.total_budget || 0)} ${escapeHtml(budget.currency || "")}</h2>
         <p>${escapeHtml(budget.daily_budget || 0)} ${escapeHtml(budget.currency || "")} / day · ${escapeHtml(budget.campaign_days || "")} days</p>
         <p>${escapeHtml(budget.note || "")}</p>
+        ${budget.planning_warning ? `<div class="strategy-review-warnings"><strong>Budget planning</strong><p>${escapeHtml(budget.planning_warning)}</p></div>` : ""}
       </section>
 
       ${economics.available ? `

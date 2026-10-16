@@ -237,3 +237,11 @@ export function buildStrategyAgent(sessionId) {
 export function resumeStrategyAgent(sessionId) {
   return request(`/api/strategy-agent/${sessionId}/resume`);
 }
+
+export function reviseStrategyAgent(data) {
+  return request('/api/strategy-agent/revise', {method: 'POST', body: JSON.stringify(data)});
+}
+
+export function editStrategyAgentAnswers(sessionId, data) {
+  return request(`/api/strategy-agent/${sessionId}/answers`, {method: 'PUT', body: JSON.stringify(data)});
+}

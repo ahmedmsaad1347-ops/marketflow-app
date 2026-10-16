@@ -13,6 +13,14 @@ from fastapi.testclient import TestClient
 
 
 class StrategyJourneyTests(unittest.TestCase):
+    def revision_payload(self):
+        return dict(business_name='FlowDesk AI', product='AI customer support SaaS software',
+                    offer='14-day paid trial', country='Egypt', audience='Small business owners',
+                    objective='sales', demand_type='discovery', sales_channel='website',
+                    currency='EGP', total_budget=3000, campaign_days=30,
+                    price=1000, gross_margin_percent=70, extra_variable_cost_per_order=50,
+                    has_website=True, has_tracking=True, has_previous_sales=True)
+
     @classmethod
     def setUpClass(cls):
         cls.directory = tempfile.TemporaryDirectory(prefix='marketflow-test-')
@@ -61,6 +69,53 @@ class StrategyJourneyTests(unittest.TestCase):
             db.close()
             minimum = load_currency_minimum(self.main.get_db, 'EGP')
             self.assertEqual(minimum.minimum_budget_per_day_micros, 10000000)
+
+    def test_edit_answers_and_rebuild_preserves_original_strategy_and_campaign(self):
+        payload = self.revision_payload()
+        with TestClient(self.main.app) as owner, TestClient(self.main.app) as other:
+            for client, name in [(owner, 'editor'), (other, 'editor-other')]:
+                self.assertEqual(client.post('/api/auth/signup', json={
+                    'name': name, 'email': name + '@example.com', 'password': 'ExamplePassword123!',
+                }).status_code, 200)
+            sid = owner.post('/api/strategy-agent/start').json()['session_id']
+            edit_url = f'/api/strategy-agent/{sid}/answers'
+            self.assertEqual(other.put(edit_url, json=payload).status_code, 404)
+            self.assertEqual(owner.put(edit_url, json=payload).status_code, 200)
+            resumed = owner.get(f'/api/strategy-agent/{sid}/resume').json()
+            self.assertEqual(resumed['answers']['total_budget'], 3000)
+            with patch('backend.strategy_agent.research_business', return_value={'sources': []}):
+                original = owner.post(f'/api/strategy-agent/{sid}/build').json()
+            original_id = original['strategy_id']
+            campaign = owner.post(f'/api/strategy/{original_id}/accept').json()['campaign']
+            self.assertEqual(owner.put(edit_url, json=payload).status_code, 409)
+            changed = {**payload, 'objective': 'leads', 'demand_type': 'search', 'total_budget': 30000}
+            revised_session = owner.post('/api/strategy-agent/revise', json=changed)
+            self.assertEqual(revised_session.status_code, 200, revised_session.text)
+            revised_sid = revised_session.json()['session_id']
+            with patch('backend.strategy_agent.research_business', return_value={'sources': []}):
+                revised = owner.post(f'/api/strategy-agent/{revised_sid}/build').json()
+            self.assertNotEqual(original_id, revised['strategy_id'])
+            self.assertEqual(revised['strategy']['requested_objective'], 'Leads')
+            self.assertEqual(revised['strategy']['budget_plan']['total_budget'], 30000)
+            saved = owner.get(f'/api/strategy/{original_id}').json()['strategy']
+            self.assertEqual(saved['input']['total_budget'], 3000)
+            self.assertEqual(saved['output'], original['strategy'])
+            self.assertEqual(saved['campaign_id'], campaign['id'])
+            self.assertEqual(other.get(f'/api/strategy/{revised["strategy_id"]}').status_code, 404)
+
+    def test_editor_rejects_invalid_brief_and_building_session(self):
+        with TestClient(self.main.app) as client:
+            client.post('/api/auth/signup', json={'name': 'Invalid edit',
+                'email': 'invalid-edit@example.com', 'password': 'ExamplePassword123!'})
+            payload = self.revision_payload()
+            self.assertEqual(client.post('/api/strategy-agent/revise', json={**payload, 'total_budget': -1}).status_code, 422)
+            self.assertEqual(client.post('/api/strategy-agent/revise', json={**payload, 'objective': 'invalid'}).status_code, 400)
+            sid = client.post('/api/strategy-agent/revise', json=payload).json()['session_id']
+            db = self.main.get_db()
+            db.execute("UPDATE strategy_agent_sessions SET status = 'Building' WHERE id = ?", (sid,))
+            db.commit()
+            db.close()
+            self.assertEqual(client.put(f'/api/strategy-agent/{sid}/answers', json=payload).status_code, 409)
 
     def test_resume_build_review_accept_and_user_isolation(self):
         answers = {

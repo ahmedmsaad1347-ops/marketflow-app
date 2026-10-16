@@ -342,12 +342,21 @@ export function strategyResultView(response) {
         <div><small>Optimize for</small><strong>${escapeHtml(strategy.optimization_event || "")}</strong></div>
       </section>
 
+      ${strategy.google_ads_capabilities?.demand_gen_budget && !strategy.google_ads_capabilities.demand_gen_budget.passed ? `
+        <section class="strategy-card">
+          <p class="review-kicker">CHANNEL ELIGIBILITY</p>
+          <p>Demand Gen excluded: ${escapeHtml(strategy.google_ads_capabilities.demand_gen_budget.detail)}</p>
+        </section>
+      ` : ""}
+
       <section class="strategy-card">
         <p class="review-kicker">AGENT RESEARCH & REVIEW</p>
         <h2>${escapeHtml(agentReview.summary || "Strategy review")}</h2>
-        <p class="strategy-note">Review: ${escapeHtml(agentReview.status || "n/a")} · Confidence: ${escapeHtml(agentReview.confidence || "n/a")} · Sources: ${escapeHtml(agentReview.source_count || 0)}</p>
+        <p class="strategy-note">Review: ${escapeHtml(agentReview.status || "n/a")} · Confidence: ${escapeHtml(agentReview.confidence || "n/a")} · Retrieved sources: ${escapeHtml(agentReview.source_count || 0)}</p>
         ${(agentReview.corrections || []).length ? `<div class="strategy-review-warnings"><strong>Reviewer flags</strong><ul>${list(agentReview.corrections || [])}</ul></div>` : ""}
-        ${(research.sources || []).length ? `<div class="strategy-research-sources"><h3>Research sources</h3>${(research.sources || []).slice(0,8).map(source => `<a class="strategy-research-source" href="${escapeHtml(source.url || "#")}" target="_blank" rel="noopener noreferrer"><strong>${escapeHtml(source.title || source.url || "Source")}</strong><small>${escapeHtml(source.official_provider ? "Official " + source.official_provider + " source" : source.source || "Web source")}</small>${source.snippet ? `<p>${escapeHtml(source.snippet)}</p>` : ""}</a>`).join("")}</div>` : `<p class="strategy-note">No external pages were reachable in this run; internal rules still produced the strategy.</p>`}
+        ${(agentReview.applied_corrections || []).length ? `<div class="strategy-review-warnings"><strong>Corrections applied</strong><ul>${list(agentReview.applied_corrections.map(change => `${change.field}: ${change.previous_value || "(empty)"} → ${change.value}. ${change.reason}`))}</ul></div>` : ""}
+        ${(agentReview.evidence_gaps || []).length ? `<div class="strategy-review-warnings"><strong>Evidence to verify</strong><ul>${list(agentReview.evidence_gaps)}</ul></div>` : ""}
+        ${(research.sources || []).length ? `<div class="strategy-research-sources"><h3>Research sources</h3>${(research.sources || []).slice(0,8).map(source => `<a class="strategy-research-source" href="${escapeHtml(source.url || "#")}" target="_blank" rel="noopener noreferrer"><strong>${escapeHtml(source.title || source.url || "Source")}</strong><small>${escapeHtml(source.official_provider ? "Official " + source.official_provider + " source" : source.source || "Web source")} · ${source.snippet && source.retrieval_status !== "unavailable" ? "Page content retrieved" : "Page content unavailable"}</small>${source.snippet ? `<p>${escapeHtml(source.snippet)}</p>` : ""}</a>`).join("")}</div>` : `<p class="strategy-note">No external pages were reachable in this run; internal rules still produced the strategy.</p>`}
       </section>
 
       <section class="strategy-card">

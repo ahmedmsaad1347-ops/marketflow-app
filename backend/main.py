@@ -107,6 +107,7 @@ def init_db():
             reach INTEGER NOT NULL DEFAULT 0,
             clicks INTEGER NOT NULL DEFAULT 0,
             messages INTEGER NOT NULL DEFAULT 0,
+            message_leads REAL NOT NULL DEFAULT 0,
             leads INTEGER NOT NULL DEFAULT 0,
             conversions INTEGER NOT NULL DEFAULT 0,
 
@@ -367,6 +368,10 @@ def init_db():
 
         END
     """)
+
+    analytics_columns = {row['name'] for row in db.execute('PRAGMA table_info(analytics_daily)')}
+    if 'message_leads' not in analytics_columns:
+        db.execute('ALTER TABLE analytics_daily ADD COLUMN message_leads REAL NOT NULL DEFAULT 0')
 
     db.commit()
     db.close()
@@ -1446,6 +1451,7 @@ def build_analytics_metrics(row):
         "reach": row["reach"] or 0,
         "clicks": clicks,
         "messages": row["messages"] or 0,
+        "message_leads": row["message_leads"] or 0,
         "leads": leads,
         "conversions": conversions,
         "spend": round(spend, 2),
@@ -1505,6 +1511,7 @@ def analytics_sum(
                 AS clicks,
             COALESCE(SUM(messages), 0)
                 AS messages,
+            COALESCE(SUM(message_leads), 0) AS message_leads,
             COALESCE(SUM(leads), 0)
                 AS leads,
             COALESCE(SUM(conversions), 0)
@@ -1860,6 +1867,7 @@ def analytics_overview(
         "revenue",
         "spend",
         "leads",
+        "message_leads",
         "conversions",
         "clicks",
         "impressions"
@@ -1876,6 +1884,7 @@ def analytics_overview(
                 AS spend,
             COALESCE(SUM(revenue), 0)
                 AS revenue,
+            COALESCE(SUM(message_leads), 0) AS message_leads,
             COALESCE(SUM(leads), 0)
                 AS leads,
             COALESCE(SUM(conversions), 0)
@@ -1923,6 +1932,7 @@ def analytics_overview(
                 row["revenue"] if row else 0,
                 2
             ),
+            "message_leads": row["message_leads"] if row else 0,
             "leads":
                 row["leads"] if row else 0,
             "conversions":
@@ -1940,6 +1950,7 @@ def analytics_overview(
                 AS spend,
             COALESCE(SUM(revenue), 0)
                 AS revenue,
+            COALESCE(SUM(message_leads), 0) AS message_leads,
             COALESCE(SUM(leads), 0)
                 AS leads,
             COALESCE(SUM(conversions), 0)
@@ -1970,6 +1981,7 @@ def analytics_overview(
             "provider": row["provider"],
             "spend": round(spend, 2),
             "revenue": round(revenue, 2),
+            "message_leads": row["message_leads"] or 0,
             "leads": row["leads"] or 0,
             "conversions":
                 row["conversions"] or 0,
@@ -1997,6 +2009,7 @@ def analytics_overview(
                 AS spend,
             COALESCE(SUM(revenue), 0)
                 AS revenue,
+            COALESCE(SUM(message_leads), 0) AS message_leads,
             COALESCE(SUM(leads), 0)
                 AS leads,
             COALESCE(SUM(conversions), 0)
@@ -2027,6 +2040,7 @@ def analytics_overview(
             "name": row["campaign_name"],
             "spend": round(spend, 2),
             "revenue": round(revenue, 2),
+            "message_leads": row["message_leads"] or 0,
             "leads": row["leads"] or 0,
             "conversions":
                 row["conversions"] or 0,
@@ -2096,6 +2110,7 @@ def upsert_analytics_record(
     reach=0,
     clicks=0,
     messages=0,
+    message_leads=0,
     leads=0,
     conversions=0,
     spend=0,
@@ -2127,6 +2142,7 @@ def upsert_analytics_record(
             reach,
             clicks,
             messages,
+            message_leads,
             leads,
             conversions,
             spend,
@@ -2137,7 +2153,7 @@ def upsert_analytics_record(
         )
         VALUES (
             ?, ?, ?, ?, ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?, ?, ?, ?
+            ?, ?, ?, ?, ?, ?, ?, ?, ?
         )
 
         ON CONFLICT(
@@ -2159,6 +2175,7 @@ def upsert_analytics_record(
                 excluded.clicks,
             messages =
                 excluded.messages,
+            message_leads = excluded.message_leads,
             leads =
                 excluded.leads,
             conversions =
@@ -2182,6 +2199,7 @@ def upsert_analytics_record(
         reach,
         clicks,
         messages,
+        message_leads,
         leads,
         conversions,
         spend,

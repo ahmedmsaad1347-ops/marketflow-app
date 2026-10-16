@@ -1,12 +1,13 @@
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from backend.strategy_engine import StrategyRequest, build_strategy
 from backend.research_agent import research_business, review_strategy, apply_review
+from backend.google_ads_capabilities import load_currency_minimum
 
 
 class AgentAnswer(BaseModel):
@@ -554,6 +555,22 @@ def register_strategy_agent(app, get_db, get_current_user):
                 detail="Please answer all agent questions first.",
             )
 
+        # Claim the build before doing network work. A second request must not
+        # perform research or insert another result for the same session.
+        claimed_at = datetime.utcnow().isoformat()
+        expired_before = (datetime.utcnow() - timedelta(minutes=3)).isoformat()
+        claim = db.execute("""
+            UPDATE strategy_agent_sessions
+            SET status = 'Building', updated_at = ?
+            WHERE id = ? AND user_id = ?
+            AND (status = 'Ready' OR (status = 'Building' AND updated_at < ?))
+        """, (claimed_at, session_id, user['id'], expired_before))
+        db.commit()
+        if claim.rowcount != 1:
+            db.close()
+            raise HTTPException(status_code=409, detail="This strategy is already building. Retry shortly to retrieve the saved result.")
+        db.close()
+
         defaults = {
             "offer": "",
             "price": 0,
@@ -580,7 +597,8 @@ def register_strategy_agent(app, get_db, get_current_user):
             )
 
             result = build_strategy(
-                request
+                request,
+                google_currency_minimum=load_currency_minimum(get_db, request.currency),
             )
 
             research = research_business(
@@ -602,6 +620,12 @@ def register_strategy_agent(app, get_db, get_current_user):
             result["research_evidence"] = research
 
         except Exception as exc:
+            db = get_db()
+            db.execute("""
+                UPDATE strategy_agent_sessions SET status = 'Ready'
+                WHERE id = ? AND user_id = ? AND status = 'Building' AND updated_at = ?
+            """, (session_id, user['id'], claimed_at))
+            db.commit()
             db.close()
 
             detail = (
@@ -619,7 +643,7 @@ def register_strategy_agent(app, get_db, get_current_user):
             )
 
         now = datetime.utcnow().isoformat()
-
+        db = get_db()
         cursor = db.execute("""
             INSERT INTO marketing_strategies (
                 user_id,
@@ -651,7 +675,7 @@ def register_strategy_agent(app, get_db, get_current_user):
 
         strategy_id = cursor.lastrowid
 
-        db.execute("""
+        saved = db.execute("""
             UPDATE strategy_agent_sessions
             SET
                 status = 'Complete',
@@ -659,12 +683,19 @@ def register_strategy_agent(app, get_db, get_current_user):
                 updated_at = ?
             WHERE id = ?
             AND user_id = ?
+            AND status = 'Building' AND updated_at = ?
         """, (
             strategy_id,
             now,
             session_id,
             user["id"],
+            claimed_at,
         ))
+
+        if saved.rowcount != 1:
+            db.rollback()
+            db.close()
+            raise HTTPException(status_code=409, detail="A newer build owns this session. Resume it to retrieve the result.")
 
         db.commit()
         db.close()

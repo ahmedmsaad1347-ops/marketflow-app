@@ -1056,6 +1056,18 @@ export function reportsView(
         </article>
 
         <article>
+          <small>Message leads</small>
+          <strong>${number(summary.message_leads)}</strong>
+          <span>Included in leads; interest shown through a conversation</span>
+        </article>
+
+        <article>
+          <small>Messages</small>
+          <strong>${number(summary.messages)}</strong>
+          <span>Conversations are separate from leads and purchases</span>
+        </article>
+
+        <article>
           <small>CPA</small>
           <strong>
             $${money(summary.cpa)}

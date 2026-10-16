@@ -342,6 +342,13 @@ export function strategyResultView(response) {
         <div><small>Optimize for</small><strong>${escapeHtml(strategy.optimization_event || "")}</strong></div>
       </section>
 
+      ${strategy.google_ads_capabilities?.demand_gen_budget && !strategy.google_ads_capabilities.demand_gen_budget.passed ? `
+        <section class="strategy-card">
+          <p class="review-kicker">CHANNEL ELIGIBILITY</p>
+          <p>Demand Gen excluded: ${escapeHtml(strategy.google_ads_capabilities.demand_gen_budget.detail)}</p>
+        </section>
+      ` : ""}
+
       <section class="strategy-card">
         <p class="review-kicker">AGENT RESEARCH & REVIEW</p>
         <h2>${escapeHtml(agentReview.summary || "Strategy review")}</h2>

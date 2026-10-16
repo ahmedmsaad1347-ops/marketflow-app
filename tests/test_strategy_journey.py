@@ -5,6 +5,8 @@ import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from threading import Event
+from datetime import datetime, timezone
+from backend.google_ads_capabilities import save_currency_constant, load_currency_minimum
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -25,6 +27,40 @@ class StrategyJourneyTests(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.directory.cleanup()
+
+    def test_google_message_analytics_and_currency_snapshot(self):
+        with TestClient(self.main.app) as client:
+            response = client.post('/api/auth/signup', json={
+                'name': 'Measurement test', 'email': 'measurement@example.com',
+                'password': 'ExamplePassword123!',
+            })
+            self.assertEqual(response.status_code, 200, response.text)
+            uid = response.json()['user']['id']
+            db = self.main.get_db()
+            # Exercise migration on the old schema, preserving existing data.
+            db.execute('ALTER TABLE analytics_daily DROP COLUMN message_leads')
+            db.execute('''INSERT INTO analytics_daily
+                (user_id, date, provider, messages, created_at, updated_at)
+                VALUES (?, ?, 'legacy', 7, ?, ?)''',
+                (uid, datetime.now().date().isoformat(), 'test', 'test'))
+            db.commit()
+            self.main.init_db()
+            self.assertEqual(db.execute('SELECT message_leads FROM analytics_daily').fetchone()[0], 0)
+            self.main.upsert_analytics_record(db, uid, date=datetime.now().date().isoformat(),
+                provider='google', campaign_id='test-campaign', messages=20,
+                message_leads=2.5, leads=2.5, conversions=0, revenue=0)
+            report = client.get('/api/analytics/overview').json()
+            self.assertEqual(report['summary']['messages'], 27)
+            self.assertEqual(report['summary']['message_leads'], 2.5)
+            self.assertEqual(report['summary']['conversions'], 0)
+            self.assertEqual(report['summary']['revenue'], 0)
+            self.assertEqual(report['timeline'][-1]['message_leads'], 2.5)
+            self.assertEqual(report['top_campaigns'][0]['message_leads'], 2.5)
+            save_currency_constant(db, {'code': 'EGP', 'demand_gen_info': {
+                'minimum_budget_per_day_micros': '10000000'}}, datetime.now(timezone.utc))
+            db.close()
+            minimum = load_currency_minimum(self.main.get_db, 'EGP')
+            self.assertEqual(minimum.minimum_budget_per_day_micros, 10000000)
 
     def test_resume_build_review_accept_and_user_isolation(self):
         answers = {

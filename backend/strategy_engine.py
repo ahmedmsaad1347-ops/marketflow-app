@@ -4,6 +4,10 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from backend.google_ads_capabilities import (
+    daily_micros, demand_gen_budget_check, load_currency_minimum,
+    register_currency_capabilities,
+)
 
 
 CAPABILITY_SNAPSHOT = "2026-10-09"
@@ -1662,7 +1666,7 @@ def _economics(data, currency):
     return result, 0, None
 
 
-def build_strategy(data):
+def build_strategy(data, *, google_currency_minimum=None):
     objective = data.objective.strip().lower()
     currency = data.currency.strip().upper()
     days = max(data.campaign_days, 1)
@@ -1676,6 +1680,14 @@ def build_strategy(data):
         business_profile,
         data,
     )
+
+    google_budget_check = demand_gen_budget_check(
+        currency, daily_micros(data.total_budget, days), google_currency_minimum,
+    )
+    for item in candidates:
+        if item['provider'] == 'Google' and item['campaign_type'] == 'Demand Gen':
+            item['eligible'] = item['eligible'] and google_budget_check['passed']
+            item['availability_note'] += ' ' + google_budget_check['detail']
 
     eligible = [item for item in candidates if item["eligible"]]
 
@@ -1914,6 +1926,11 @@ def build_strategy(data):
     return {
         "version": ENGINE_VERSION,
         "capability_snapshot": CAPABILITY_SNAPSHOT,
+        "google_ads_capabilities": {
+            'api_version': 'v26', 'snapshot': '2026-10-14',
+            'demand_gen_budget': google_budget_check,
+            'provider_validation_required': True,
+        },
         "engine": "Business understanding + candidate scoring + platform rules + business economics",
         "disclaimer": (
             "This is a planning recommendation based on the business inputs provided and a versioned "
@@ -1954,6 +1971,13 @@ def build_strategy(data):
         "audience_plan": audience_plan,
         "creative_plan": creative,
         "tracking_checklist": tracking,
+        "measurement_plan": {
+            'messages': 'Conversation interactions, not automatically leads or sales.',
+            'message_leads': 'MESSAGE_LEAD indicates interest through a message; included in leads, not purchases.',
+            'qualified_leads': 'Use CRM or explicit QUALIFIED_LEAD evidence for qualification.',
+            'purchases': 'Count separately using verified purchase or store-sale events.',
+            'attribution': 'CLICK is an attribution event type, not an extra conversion.',
+        },
         "test_plan": {
             "principle": "Change one major variable at a time so the result is interpretable.",
             "creative_variants": 3,
@@ -1971,6 +1995,7 @@ def build_strategy(data):
 
 
 def register_strategy_engine(app, get_db, get_current_user):
+    register_currency_capabilities(get_db)
     db = get_db()
 
     db.execute("""
@@ -2027,7 +2052,7 @@ def register_strategy_engine(app, get_db, get_current_user):
                 ),
             )
 
-        result = build_strategy(data)
+        result = build_strategy(data, google_currency_minimum=load_currency_minimum(get_db, data.currency))
         now = datetime.utcnow().isoformat()
         db = get_db()
 

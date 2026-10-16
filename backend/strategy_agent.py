@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 from backend.strategy_engine import StrategyRequest, build_strategy
 from backend.research_agent import research_business, review_strategy, apply_review
+from backend.google_ads_capabilities import load_currency_minimum
 
 
 class AgentAnswer(BaseModel):
@@ -596,7 +597,8 @@ def register_strategy_agent(app, get_db, get_current_user):
             )
 
             result = build_strategy(
-                request
+                request,
+                google_currency_minimum=load_currency_minimum(get_db, request.currency),
             )
 
             research = research_business(

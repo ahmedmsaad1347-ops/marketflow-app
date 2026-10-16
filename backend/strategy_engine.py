@@ -1883,6 +1883,13 @@ def build_strategy(data, *, google_currency_minimum=None):
         "total_budget": _round(data.total_budget),
         "campaign_days": days,
         "daily_budget": _round(daily_budget),
+        "planning_warning": (
+            f"Daily budget ({_round(daily_budget)} {currency}) is below the "
+            f"{target_metric_label} ({_round(target_metric)} {currency}). "
+            "This may limit what the first test can establish. "
+            "The planning threshold is not a performance forecast or a platform budget minimum."
+            if target_metric > 0 and daily_budget < target_metric else None
+        ),
         "primary_channel_share_percent": 100,
         "primary_channel": winner["provider"],
         "primary_campaign_type": winner["campaign_type"],

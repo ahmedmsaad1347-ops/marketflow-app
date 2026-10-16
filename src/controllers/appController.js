@@ -12,6 +12,8 @@ import {
   answerStrategyAgent,
   buildStrategyAgent,
   resumeStrategyAgent,
+  reviseStrategyAgent,
+  editStrategyAgentAnswers,
   getDashboardOverview,
   getNotifications,
   markNotificationRead,
@@ -171,6 +173,14 @@ function saveAppHistory(
 async function renderAppHistoryState(
   state = {}
 ) {
+  if (state.page === 'strategy-edit' && state.id) {
+    await showStrategyEditor({strategyId: state.id}, false);
+    return;
+  }
+  if (state.page === 'strategy-agent-edit' && state.id) {
+    await showStrategyEditor({sessionId: state.id}, false);
+    return;
+  }
   if (
     state.page ===
     "campaign-review" &&
@@ -355,6 +365,17 @@ async function showPage(
 
 
 function attachStrategyLaunchers() {
+  document.querySelectorAll('[data-edit-strategy]').forEach(button => {
+    button.onclick = async () => {
+      button.disabled = true;
+      try {
+        await showStrategyEditor({strategyId: button.dataset.editStrategy});
+      } catch (error) {
+        button.disabled = false;
+        alert(error.message);
+      }
+    };
+  });
   document
     .querySelectorAll("[data-strategy-start]")
     .forEach(button => {
@@ -363,6 +384,48 @@ function attachStrategyLaunchers() {
         showPage("strategy");
       };
     });
+}
+
+
+async function showStrategyEditor({strategyId, sessionId}, pushHistory = true) {
+  let answers;
+  let mode = 'agent';
+  if (sessionId) {
+    const response = await resumeStrategyAgent(sessionId);
+    answers = response.answers || {};
+    if (response.status === 'Complete' && response.strategy_id) {
+      return showStrategyEditor({strategyId: response.strategy_id}, pushHistory);
+    }
+  } else {
+    const response = await getStrategy(strategyId);
+    answers = response.strategy.input;
+    mode = response.strategy.mode;
+  }
+  const page = document.querySelector('#pageContent');
+  page.innerHTML = strategyView('quick');
+  page.querySelector('h1').textContent = 'Review & edit your answers';
+  page.querySelector('.subtitle').textContent = 'Change the fields you need, then rebuild. Your previous strategy and campaign stay saved.';
+  const form = page.querySelector('#strategyForm');
+  form.dataset.editMode = mode;
+  if (sessionId) form.dataset.agentSessionId = sessionId;
+  for (const [name, value] of Object.entries(answers)) {
+    const field = form.elements.namedItem(name);
+    if (!field) continue;
+    if (field.type === 'checkbox') field.checked = value === true;
+    else {
+      if (field.tagName === 'SELECT' && value != null && ![...field.options].some(option => option.value === String(value))) {
+        field.add(new Option(String(value), String(value)));
+      }
+      field.value = value ?? '';
+    }
+  }
+  if (pushHistory) saveAppHistory(sessionId ? 'strategy-agent-edit' : 'strategy-edit', {id: sessionId || strategyId});
+  setActiveNavigation('strategy');
+  attachNavigation();
+  attachStrategyLaunchers();
+  attachStrategyWizard();
+  document.querySelector('#strategyGenerate').textContent = 'Save answers & Build Strategy';
+  window.scrollTo(0, 0);
 }
 
 
@@ -603,7 +666,26 @@ function attachStrategyWizard() {
     }
 
     try {
-      const response = await generateStrategy(payload);
+      let response;
+      if (form.dataset.editMode === 'agent') {
+        let sid = form.dataset.agentSessionId;
+        if (sid) {
+          await editStrategyAgentAnswers(sid, payload);
+        } else {
+          const session = await reviseStrategyAgent(payload);
+          sid = session.session_id;
+          form.dataset.agentSessionId = sid;
+          saveAppHistory('strategy-agent-edit', {id: sid});
+        }
+        response = await buildStrategyAgent(sid);
+        if (String(localStorage.getItem('marketflow_strategy_agent_session')) === String(sid)) {
+          localStorage.removeItem('marketflow_strategy_agent_session');
+          localStorage.removeItem('marketflow_strategy_agent_chat');
+          localStorage.removeItem('marketflow_strategy_agent_draft');
+        }
+      } else {
+        response = await generateStrategy(payload);
+      }
       const pageContent = document.querySelector("#pageContent");
       pageContent.innerHTML = strategyResultView(response);
 
@@ -722,12 +804,16 @@ function attachStrategyAgent() {
 
   const chat = document.querySelector("#strategyAgentChat");
   const composer = document.querySelector("#strategyAgentComposer");
+  const reviewButton = document.querySelector('#reviewAgentAnswersBtn');
 
   const SESSION_KEY = "marketflow_strategy_agent_session";
   const CHAT_KEY = "marketflow_strategy_agent_chat";
   const DRAFT_KEY = "marketflow_strategy_agent_draft";
 
   let sessionId = null;
+  if (reviewButton) reviewButton.onclick = () => {
+    showStrategyEditor({sessionId}).catch(error => alert(error.message));
+  };
 
   const saveChat = () => {
     const items = Array.from(
@@ -821,6 +907,7 @@ function attachStrategyAgent() {
 
     button.onclick = async () => {
       button.disabled = true;
+      if (reviewButton) reviewButton.disabled = true;
       button.textContent =
         "Researching, reviewing & building...";
 
@@ -858,6 +945,7 @@ function attachStrategyAgent() {
 
       } catch (error) {
         button.disabled = false;
+        if (reviewButton) reviewButton.disabled = false;
         button.textContent = "Build Strategy";
 
         addBubble(
@@ -1096,6 +1184,7 @@ function attachStrategyAgent() {
 
       startButton.style.display =
         "none";
+      if (reviewButton) reviewButton.hidden = false;
 
       if (
         response.status === "Complete"
@@ -1180,6 +1269,7 @@ function attachStrategyAgent() {
 
       sessionId =
         response.session_id;
+      if (reviewButton) reviewButton.hidden = false;
 
       localStorage.setItem(
         SESSION_KEY,

@@ -90,20 +90,25 @@ class ResearchReviewTests(unittest.TestCase):
         self.assertEqual(result['cta'], 'Book a demo')
         self.assertEqual(result['agent_review']['applied_corrections'], [])
 
-    @patch('backend.research_agent.snippet', return_value='')
+    @patch('backend.research_agent.retrieve_source', return_value={
+        'snippet': '', 'retrieval_status': 'unavailable'})
     @patch('backend.research_agent.ddg', return_value=[])
     def test_failed_fetch_is_explicit(self, search, fetch_snippet):
         research = research_business(self.state, self.strategy)
         self.assertEqual(research['sources'][0]['retrieval_status'], 'unavailable')
         self.assertEqual(self.review(research['sources'])['source_count'], 0)
 
-    @patch('backend.research_agent.snippet', return_value='Readable content')
+    @patch('backend.research_agent.retrieve_source')
     @patch('backend.research_agent.ddg')
-    def test_retrieved_pages_rank_before_unreachable_seeds(self, search, fetch_snippet):
+    def test_official_seed_is_reserved_and_its_failure_is_not_hidden(self, search, fetch_snippet):
         search.return_value = [{'url': 'https://example.com/', 'title': 'Business'}]
-        fetch_snippet.side_effect = lambda url: '' if 'google.com' in url else 'Readable content'
-        research = research_business(self.state, self.strategy, max_sources=1)
-        self.assertEqual(research['sources'][0]['url'], 'https://example.com/')
+        fetch_snippet.side_effect = lambda url: {
+            'snippet': '' if 'google.com' in url else 'Readable content',
+            'retrieval_status': 'unavailable' if 'google.com' in url else 'retrieved'}
+        research = research_business(self.state, self.strategy, max_sources=2)
+        self.assertEqual(research['sources'][0]['official_provider'], 'google')
+        self.assertEqual(research['sources'][0]['retrieval_status'], 'unavailable')
+        self.assertEqual(len(research['sources']), 2)
 
     @patch('backend.research_agent.ddg')
     def test_zero_source_limit_does_not_search(self, search):

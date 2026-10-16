@@ -269,6 +269,50 @@ def register_strategy_agent(app, get_db, get_current_user):
 
     router = APIRouter()
 
+    def editor_state(data):
+        if data.objective not in {'sales', 'leads', 'messages', 'traffic', 'awareness'}:
+            raise HTTPException(status_code=400, detail='Choose a valid campaign objective.')
+        if data.demand_type not in {'search', 'discovery', 'mixed'}:
+            raise HTTPException(status_code=400, detail='Choose a valid demand type.')
+        if data.sales_channel not in {'website', 'whatsapp', 'phone', 'store'}:
+            raise HTTPException(status_code=400, detail='Choose a valid conversion destination.')
+        return {**data.dict(), 'mode': 'guided'}
+
+    @router.post('/api/strategy-agent/revise')
+    def revise_agent(data: StrategyRequest, user=Depends(get_current_user)):
+        # Editing a completed strategy creates a new session, preserving the
+        # previous strategy and any campaign already accepted from it.
+        state = editor_state(data)
+        now = datetime.utcnow().isoformat()
+        db = get_db()
+        cursor = db.execute('''INSERT INTO strategy_agent_sessions
+            (user_id, state_json, status, created_at, updated_at)
+            VALUES (?, ?, 'Ready', ?, ?)''',
+            (user['id'], json.dumps(state, ensure_ascii=False), now, now))
+        db.commit()
+        sid = cursor.lastrowid
+        db.close()
+        return {'success': True, 'session_id': sid, 'ready_to_build': True}
+
+    @router.put('/api/strategy-agent/{session_id}/answers')
+    def edit_agent_answers(session_id: int, data: StrategyRequest, user=Depends(get_current_user)):
+        state = editor_state(data)
+        db = get_db()
+        row = db.execute('SELECT status FROM strategy_agent_sessions WHERE id = ? AND user_id = ?',
+                         (session_id, user['id'])).fetchone()
+        if row is None:
+            db.close()
+            raise HTTPException(status_code=404, detail='Agent session not found.')
+        cursor = db.execute('''UPDATE strategy_agent_sessions
+            SET state_json = ?, status = 'Ready', updated_at = ?
+            WHERE id = ? AND user_id = ? AND status IN ('Active', 'Ready')''',
+            (json.dumps(state, ensure_ascii=False), datetime.utcnow().isoformat(), session_id, user['id']))
+        db.commit()
+        db.close()
+        if cursor.rowcount != 1:
+            raise HTTPException(status_code=409, detail='This session is building or complete. Edit the saved strategy to create a new version.')
+        return {'success': True, 'session_id': session_id, 'ready_to_build': True}
+
     @router.post("/api/strategy-agent/start")
     def start_agent(user=Depends(get_current_user)):
         now = datetime.utcnow().isoformat()
@@ -351,6 +395,7 @@ def register_strategy_agent(app, get_db, get_current_user):
                 "success": True,
                 "session_id": session_id,
                 "status": "Complete",
+                "answers": state,
                 "strategy_id": strategy_id,
                 "strategy": (
                     json.loads(strategy_row["output_json"])
@@ -368,6 +413,7 @@ def register_strategy_agent(app, get_db, get_current_user):
                 "success": True,
                 "session_id": session_id,
                 "status": "Ready",
+                "answers": state,
                 "ready_to_build": True,
                 "message": (
                     "Your answers are saved. "
@@ -379,6 +425,7 @@ def register_strategy_agent(app, get_db, get_current_user):
             "success": True,
             "session_id": session_id,
             "status": "Active",
+            "answers": state,
             "question": {
                 "key": next_key,
                 **_question_for(

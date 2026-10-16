@@ -121,7 +121,15 @@ def review_strategy(strategy,state,research):
         if g and platform!='Google' and g.get('score',0)>=strategy.get('fit_score',0)-5:
             corrections.append('B2B SaaS has a near-tied Google Search option; the final plan must explicitly justify choosing another channel.')
     cta=((strategy.get('creative_plan') or {}).get('cta') or strategy.get('cta') or '')
-    if vertical=='saas' and 'trial' in (state.get('offer') or '').lower() and 'trial' not in cta.lower(): corrections.append('CTA should reflect the verified trial offer instead of a generic quote CTA.')
+    proposed_changes = []
+    offer = (state.get('offer') or '').strip()
+    has_trial = re.search(r'\btrial\b', offer, re.I) and not re.search(
+        r'\b(no|without|not|unavailable|expired)\b', offer, re.I)
+    if vertical == 'saas' and has_trial and 'trial' not in cta.lower():
+        message = 'CTA should reflect the supplied trial offer instead of a generic CTA.'
+        corrections.append(message)
+        proposed_changes.append({'field': 'cta', 'value': 'Start your trial',
+                                 'reason': message, 'basis': offer})
     gaps = [check['detail'] for check in checks if not check['passed']]
     needs_review = bool(corrections or gaps)
     return {
@@ -131,6 +139,7 @@ def review_strategy(strategy,state,research):
         'confidence': 'Needs review' if needs_review else 'Medium',
         'checks': checks,
         'corrections': corrections,
+        'proposed_changes': proposed_changes,
         'evidence_gaps': gaps,
         'source_count': len(retrieved),
         'discovered_source_count': len(sources),
@@ -140,7 +149,29 @@ def review_strategy(strategy,state,research):
     }
 
 def apply_review(strategy,review):
-    out=dict(strategy); risks=list(out.get('risks') or [])
+    out=dict(strategy)
+    review = dict(review)
+    applied = []
+    unresolved = list(review.get('corrections', []))
+    for change in review.get('proposed_changes', []):
+        if change.get('field') != 'cta' or change.get('value') != 'Start your trial':
+            continue
+        if not change.get('basis') or change.get('reason') not in unresolved:
+            continue
+        previous = out.get('cta')
+        out['cta'] = change['value']
+        out['creative_plan'] = {**(out.get('creative_plan') or {}), 'cta': change['value']}
+        applied.append({**change, 'previous_value': previous})
+        unresolved.remove(change['reason'])
+    review['applied_corrections'] = applied
+    review['corrections'] = unresolved
+    if applied:
+        remaining = bool(unresolved or review.get('evidence_gaps'))
+        review['status'] = 'needs_review' if remaining else 'corrected'
+        review['confidence'] = 'Needs review' if remaining else 'Medium'
+        review['summary'] = ('CTA corrected to match the supplied offer. Other review flags remain.'
+                             if remaining else 'CTA corrected to match the supplied offer; basic checks passed.')
+    risks=list(out.get('risks') or [])
     for c in [*review.get('corrections',[]), *review.get('evidence_gaps',[])]:
         if c not in risks: risks.append(c)
     if review.get('corrections') or review.get('evidence_gaps'):

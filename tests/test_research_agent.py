@@ -68,6 +68,28 @@ class ResearchReviewTests(unittest.TestCase):
         self.assertTrue(any('tracking' in x.lower() for x in review['corrections']))
         self.assertEqual(review['status'], 'needs_review')
 
+    def test_trial_cta_is_corrected_without_inventing_a_free_offer(self):
+        self.strategy.update(business_profile={'vertical': 'SaaS', 'vertical_key': 'saas'},
+                             cta='Get a quote', creative_plan={'cta': 'Get a quote'})
+        self.state['offer'] = '14-day paid trial'
+        review = self.review([{'url': 'https://support.google.com/google-ads/',
+                               'snippet': 'Official campaign guidance'}])
+        result = apply_review(self.strategy, review)
+        self.assertEqual(result['cta'], 'Start your trial')
+        self.assertEqual(result['creative_plan']['cta'], result['cta'])
+        self.assertEqual(result['agent_review']['status'], 'corrected')
+        self.assertEqual(result['agent_review']['corrections'], [])
+        self.assertEqual(len(result['agent_review']['applied_corrections']), 1)
+        self.assertEqual(self.strategy['creative_plan']['cta'], 'Get a quote')
+
+    def test_negative_trial_offer_does_not_create_a_trial_cta(self):
+        self.strategy['business_profile'] = {'vertical': 'SaaS', 'vertical_key': 'saas'}
+        self.strategy['cta'] = 'Book a demo'
+        self.state['offer'] = 'No trial available'
+        result = apply_review(self.strategy, self.review([]))
+        self.assertEqual(result['cta'], 'Book a demo')
+        self.assertEqual(result['agent_review']['applied_corrections'], [])
+
     @patch('backend.research_agent.snippet', return_value='')
     @patch('backend.research_agent.ddg', return_value=[])
     def test_failed_fetch_is_explicit(self, search, fetch_snippet):

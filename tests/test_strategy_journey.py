@@ -3,6 +3,8 @@ import importlib
 import os
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -64,8 +66,26 @@ class StrategyJourneyTests(unittest.TestCase):
                 if progress.get('question'):
                     self.assertEqual(resumed['question']['key'], progress['question']['key'])
             self.assertTrue(owner.get(endpoint + '/resume').json()['ready_to_build'])
-            with patch('backend.strategy_agent.research_business', return_value={'sources': []}):
-                response = owner.post(endpoint + '/build')
+            with patch('backend.strategy_agent.research_business', side_effect=RuntimeError('Temporary research failure')):
+                self.assertEqual(owner.post(endpoint + '/build').status_code, 400)
+            self.assertTrue(owner.get(endpoint + '/resume').json()['ready_to_build'])
+            entered, release = Event(), Event()
+            def slow_research(*args):
+                entered.set()
+                if not release.wait(5):
+                    raise RuntimeError('Test research timed out')
+                return {'sources': []}
+            with patch('backend.strategy_agent.research_business', side_effect=slow_research) as research:
+                with ThreadPoolExecutor(max_workers=1) as pool:
+                    pending = pool.submit(owner.post, endpoint + '/build')
+                    try:
+                        self.assertTrue(entered.wait(3))
+                        duplicate = owner.post(endpoint + '/build')
+                        self.assertEqual(duplicate.status_code, 409, duplicate.text)
+                    finally:
+                        release.set()
+                    response = pending.result(timeout=5)
+                self.assertEqual(research.call_count, 1)
             self.assertEqual(response.status_code, 200, response.text)
             built = response.json()
             strategy_id = built['strategy_id']

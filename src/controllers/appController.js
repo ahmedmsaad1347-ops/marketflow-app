@@ -1119,6 +1119,8 @@ function attachStrategyAgent() {
               "Generated"
           });
 
+        saveAppHistory("strategy-result", { id: response.strategy_id });
+
         attachNavigation();
         attachStrategyLaunchers();
         attachStrategyLast();
@@ -1148,17 +1150,18 @@ function attachStrategyAgent() {
       return true;
 
     } catch (error) {
-      clearSavedAgent();
-
       startButton.disabled = false;
       startButton.style.display = "";
-      startButton.textContent =
-        "Start Strategy Agent";
-
-      addBubble(
-        "agent",
-        "I could not restore the saved session. Start a new one."
-      );
+      if (error.status === 404) {
+        clearSavedAgent();
+        startButton.textContent = "Start Strategy Agent";
+        addBubble("agent", "The saved session is no longer available. Start a new one.");
+      } else {
+        // A temporary outage must not discard the saved session or typed draft.
+        startButton.textContent = "Retry restoring session";
+        startButton.onclick = () => resumeSavedSession();
+        addBubble("agent", "Your session is saved. I could not restore it right now; retry when the connection is available.");
+      }
 
       return false;
     }

@@ -6,8 +6,10 @@ Reviewed GitHub `main` at `848a81a` (2026-10-12, “Upgrade Research Strategy
 Agent and persist sessions”) and the supplied
 [Strategy Engine specification](https://app.notion.com/p/3f2ef14a17958115b1f2cfa1f455ecf1).
 The separate ChatGPT conversation referred to as “تغير منصات 2” is not
-available in this workspace. The future stages below are proposals based on
-the repository and specification, not a reconstruction of that conversation.
+available in this workspace. The user subsequently specified the immediate
+scope: test Research Strategy Agent V2.1 from session persistence through the
+final result. See [V2.1 validation](agent-v21-validation.md) for that work.
+The future stages below remain proposals, not a reconstruction of that conversation.
 
 ## Existing implementation
 

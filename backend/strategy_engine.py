@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -890,8 +891,10 @@ def _cta_for(data, vertical):
     offer = data.offer.strip().lower()
 
     if vertical == "saas":
-        if "free trial" in offer or "trial" in offer:
-            return "Start Free Trial"
+        if re.search(r'\btrial\b', offer) and not re.search(
+            r'\b(no|without|not|unavailable|expired)\b', offer
+        ):
+            return "Start Free Trial" if "free trial" in offer else "Start your trial"
         if "demo" in offer:
             return "Book a Demo"
         return {
@@ -1708,14 +1711,6 @@ def build_strategy(data):
         "sales": "Purchase / conversion value",
     }.get(objective, "Primary conversion")
 
-    cta = {
-        "awareness": "Learn More",
-        "traffic": "Learn More",
-        "messages": "Send Message",
-        "leads": "Get Quote",
-        "sales": "Shop Now",
-    }.get(objective, "Learn More")
-
     why = list(winner["reasons"])
 
     if runner_up:
@@ -1861,6 +1856,7 @@ def build_strategy(data):
         launch_ready = False
 
     creative = _creative_plan(data, winner)
+    cta = creative['cta']
     creative["business_profile"] = business_profile
 
     audience_plan = [

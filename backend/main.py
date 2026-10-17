@@ -22,6 +22,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.exception_handlers import request_validation_exception_handler
 from pydantic import BaseModel, Field
 from backend.auth import AuthConfig, AuthService
+from backend.analytics import overview as build_analytics_overview
+from backend.creative_studio import init_creative_tables, register_creative_studio
 
 load_dotenv()
 
@@ -367,6 +369,7 @@ def init_db():
         END
     """)
 
+    init_creative_tables(db)
     analytics_columns = {row['name'] for row in db.execute('PRAGMA table_info(analytics_daily)')}
     if 'message_leads' not in analytics_columns:
         db.execute('ALTER TABLE analytics_daily ADD COLUMN message_leads REAL NOT NULL DEFAULT 0')
@@ -885,120 +888,6 @@ def delete_campaign(
 
 
 
-def analytics_divide(a, b):
-    if not b:
-        return 0
-
-    return round(a / b, 4)
-
-
-def analytics_percent_change(current, previous):
-    if previous == 0:
-        if current == 0:
-            return 0
-        return None
-
-    return round(
-        ((current - previous) / previous) * 100,
-        2
-    )
-
-
-def build_analytics_metrics(row):
-    impressions = row["impressions"] or 0
-    clicks = row["clicks"] or 0
-    leads = row["leads"] or 0
-    conversions = row["conversions"] or 0
-    spend = row["spend"] or 0
-    revenue = row["revenue"] or 0
-
-    return {
-        "impressions": impressions,
-        "reach": row["reach"] or 0,
-        "clicks": clicks,
-        "messages": row["messages"] or 0,
-        "message_leads": row["message_leads"] or 0,
-        "leads": leads,
-        "conversions": conversions,
-        "spend": round(spend, 2),
-        "revenue": round(revenue, 2),
-
-        "roas": round(
-            analytics_divide(revenue, spend),
-            2
-        ),
-
-        "cpa": round(
-            analytics_divide(spend, conversions),
-            2
-        ),
-
-        "cpl": round(
-            analytics_divide(spend, leads),
-            2
-        ),
-
-        "cpc": round(
-            analytics_divide(spend, clicks),
-            2
-        ),
-
-        "ctr": round(
-            analytics_divide(
-                clicks * 100,
-                impressions
-            ),
-            2
-        ),
-
-        "conversion_rate": round(
-            analytics_divide(
-                conversions * 100,
-                clicks
-            ),
-            2
-        )
-    }
-
-
-def analytics_sum(
-    db,
-    user_id,
-    start_date,
-    end_date
-):
-    row = db.execute("""
-        SELECT
-            COALESCE(SUM(impressions), 0)
-                AS impressions,
-            COALESCE(SUM(reach), 0)
-                AS reach,
-            COALESCE(SUM(clicks), 0)
-                AS clicks,
-            COALESCE(SUM(messages), 0)
-                AS messages,
-            COALESCE(SUM(message_leads), 0) AS message_leads,
-            COALESCE(SUM(leads), 0)
-                AS leads,
-            COALESCE(SUM(conversions), 0)
-                AS conversions,
-            COALESCE(SUM(spend), 0)
-                AS spend,
-            COALESCE(SUM(revenue), 0)
-                AS revenue
-        FROM analytics_daily
-        WHERE user_id = ?
-        AND date >= ?
-        AND date <= ?
-    """, (
-        user_id,
-        start_date,
-        end_date
-    )).fetchone()
-
-    return build_analytics_metrics(row)
-
-
 @app.get("/api/notifications")
 def get_notifications(
     limit: int = 50,
@@ -1287,280 +1176,17 @@ def dashboard_overview(
 @app.get("/api/analytics/overview")
 def analytics_overview(
     days: int = 30,
+    provider: str = "all",
+    currency: str = "",
     user=Depends(get_current_user)
 ):
-    allowed_days = [7, 30, 90, 365]
-
-    if days not in allowed_days:
-        raise HTTPException(
-            status_code=400,
-            detail="days must be 7, 30, 90 or 365"
-        )
-
-    today = datetime.utcnow().date()
-
-    start = (
-        today -
-        timedelta(days=days - 1)
-    )
-
-    previous_end = start - timedelta(days=1)
-
-    previous_start = (
-        previous_end -
-        timedelta(days=days - 1)
-    )
-
     db = get_db()
-
-    current = analytics_sum(
-        db,
-        user["id"],
-        start.isoformat(),
-        today.isoformat()
-    )
-
-    previous = analytics_sum(
-        db,
-        user["id"],
-        previous_start.isoformat(),
-        previous_end.isoformat()
-    )
-
-    comparison = {}
-
-    for key in [
-        "revenue",
-        "spend",
-        "leads",
-        "message_leads",
-        "conversions",
-        "clicks",
-        "impressions"
-    ]:
-        comparison[key] = analytics_percent_change(
-            current[key],
-            previous[key]
-        )
-
-    daily_rows = db.execute("""
-        SELECT
-            date,
-            COALESCE(SUM(spend), 0)
-                AS spend,
-            COALESCE(SUM(revenue), 0)
-                AS revenue,
-            COALESCE(SUM(message_leads), 0) AS message_leads,
-            COALESCE(SUM(leads), 0)
-                AS leads,
-            COALESCE(SUM(conversions), 0)
-                AS conversions,
-            COALESCE(SUM(clicks), 0)
-                AS clicks,
-            COALESCE(SUM(impressions), 0)
-                AS impressions
-        FROM analytics_daily
-        WHERE user_id = ?
-        AND date >= ?
-        AND date <= ?
-        GROUP BY date
-        ORDER BY date ASC
-    """, (
-        user["id"],
-        start.isoformat(),
-        today.isoformat()
-    )).fetchall()
-
-    by_date = {
-        row["date"]: dict(row)
-        for row in daily_rows
-    }
-
-    timeline = []
-
-    for offset in range(days):
-        day = (
-            start +
-            timedelta(days=offset)
-        )
-
-        key = day.isoformat()
-
-        row = by_date.get(key)
-
-        timeline.append({
-            "date": key,
-            "spend": round(
-                row["spend"] if row else 0,
-                2
-            ),
-            "revenue": round(
-                row["revenue"] if row else 0,
-                2
-            ),
-            "message_leads": row["message_leads"] if row else 0,
-            "leads":
-                row["leads"] if row else 0,
-            "conversions":
-                row["conversions"] if row else 0,
-            "clicks":
-                row["clicks"] if row else 0,
-            "impressions":
-                row["impressions"] if row else 0
-        })
-
-    platform_rows = db.execute("""
-        SELECT
-            provider,
-            COALESCE(SUM(spend), 0)
-                AS spend,
-            COALESCE(SUM(revenue), 0)
-                AS revenue,
-            COALESCE(SUM(message_leads), 0) AS message_leads,
-            COALESCE(SUM(leads), 0)
-                AS leads,
-            COALESCE(SUM(conversions), 0)
-                AS conversions,
-            COALESCE(SUM(clicks), 0)
-                AS clicks,
-            COALESCE(SUM(impressions), 0)
-                AS impressions
-        FROM analytics_daily
-        WHERE user_id = ?
-        AND date >= ?
-        AND date <= ?
-        GROUP BY provider
-        ORDER BY revenue DESC
-    """, (
-        user["id"],
-        start.isoformat(),
-        today.isoformat()
-    )).fetchall()
-
-    platforms = []
-
-    for row in platform_rows:
-        spend = row["spend"] or 0
-        revenue = row["revenue"] or 0
-
-        platforms.append({
-            "provider": row["provider"],
-            "spend": round(spend, 2),
-            "revenue": round(revenue, 2),
-            "message_leads": row["message_leads"] or 0,
-            "leads": row["leads"] or 0,
-            "conversions":
-                row["conversions"] or 0,
-            "clicks": row["clicks"] or 0,
-            "impressions":
-                row["impressions"] or 0,
-            "roas": round(
-                analytics_divide(
-                    revenue,
-                    spend
-                ),
-                2
-            )
-        })
-
-    campaign_rows = db.execute("""
-        SELECT
-            provider,
-            campaign_id,
-            COALESCE(
-                MAX(campaign_name),
-                campaign_id
-            ) AS campaign_name,
-            COALESCE(SUM(spend), 0)
-                AS spend,
-            COALESCE(SUM(revenue), 0)
-                AS revenue,
-            COALESCE(SUM(message_leads), 0) AS message_leads,
-            COALESCE(SUM(leads), 0)
-                AS leads,
-            COALESCE(SUM(conversions), 0)
-                AS conversions
-        FROM analytics_daily
-        WHERE user_id = ?
-        AND date >= ?
-        AND date <= ?
-        AND campaign_id != ''
-        GROUP BY provider, campaign_id
-        ORDER BY revenue DESC
-        LIMIT 10
-    """, (
-        user["id"],
-        start.isoformat(),
-        today.isoformat()
-    )).fetchall()
-
-    top_campaigns = []
-
-    for row in campaign_rows:
-        spend = row["spend"] or 0
-        revenue = row["revenue"] or 0
-
-        top_campaigns.append({
-            "provider": row["provider"],
-            "campaign_id": row["campaign_id"],
-            "name": row["campaign_name"],
-            "spend": round(spend, 2),
-            "revenue": round(revenue, 2),
-            "message_leads": row["message_leads"] or 0,
-            "leads": row["leads"] or 0,
-            "conversions":
-                row["conversions"] or 0,
-            "roas": round(
-                analytics_divide(
-                    revenue,
-                    spend
-                ),
-                2
-            )
-        })
-
-    status = db.execute("""
-        SELECT
-            COUNT(*) AS records,
-            COUNT(DISTINCT provider)
-                AS providers,
-            MAX(updated_at)
-                AS last_updated
-        FROM analytics_daily
-        WHERE user_id = ?
-    """, (
-        user["id"],
-    )).fetchone()
-
-    db.close()
-
-    return {
-        "success": True,
-        "period": {
-            "days": days,
-            "start": start.isoformat(),
-            "end": today.isoformat()
-        },
-
-        "has_data":
-            status["records"] > 0,
-
-        "data_status": {
-            "records":
-                status["records"],
-            "providers":
-                status["providers"],
-            "last_updated":
-                status["last_updated"]
-        },
-
-        "summary": current,
-        "previous": previous,
-        "comparison": comparison,
-        "timeline": timeline,
-        "platforms": platforms,
-        "top_campaigns": top_campaigns
-    }
+    try:
+        return build_analytics_overview(db, user["id"], days, provider, currency)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    finally:
+        db.close()
 
 
 def upsert_analytics_record(
@@ -2556,7 +2182,7 @@ def meta_sync(
 
 
 @app.post("/api/ai/generate")
-def ai_generate(request: AIRequest):
+def ai_generate(request: AIRequest, user=Depends(get_current_user)):
     if not os.getenv(
         "OPENAI_API_KEY"
     ):
@@ -2592,3 +2218,5 @@ register_strategy_engine(app, get_db, get_current_user)
 # MarketFlow built-in Strategy Agent V1
 from backend.strategy_agent import register_strategy_agent
 register_strategy_agent(app, get_db, get_current_user)
+
+register_creative_studio(app, get_db, get_current_user, auth)

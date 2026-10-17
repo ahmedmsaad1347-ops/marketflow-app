@@ -1,3 +1,5 @@
+import { icon, brandLogo, themeChoices } from './ui.js';
+
 export function loginView() {
   return `
     <main class="login-page">
@@ -19,78 +21,44 @@ export function loginView() {
 }
 
 export function appView(user) {
+  const account = typeof user === 'string' ? { email: user } : (user || {});
+  const name = campaignEscape(account.name || 'Your workspace');
+  const email = campaignEscape(account.email || '');
+  const initial = campaignEscape((account.name || account.email || 'M').trim().slice(0, 1).toUpperCase());
+  const navigation = [
+    ['dashboard', 'home', 'Overview'], ['campaigns', 'campaigns', 'Campaigns'],
+    ['ai', 'spark', 'Strategy Agent'], ['reports', 'chart', 'Reports'], ['messages', 'message', 'Messages'],
+  ];
+  const tools = [['creative', 'file', 'Creative Studio'], ['strategy-history', 'history', 'Strategy history'], ['connections', 'link', 'Connections'], ['settings', 'settings', 'Settings']];
+  const navButton = ([page, symbol, label]) => `<button data-page="${page}" class="nav-btn" aria-label="${label}">${icon(symbol)}<span class="workspace-nav-label">${label}</span>${page === 'ai' ? '<span class="workspace-agent-tag">NEW</span>' : ''}</button>`;
   return `
     <div class="app-shell">
-
-      <header class="topbar">
-        <div>
-          <span class="brand">MarketFlow</span>
-          <small>${user}</small>
-        </div>
-
-        <div class="topbar-actions">
-
-          <button
-            id="notificationBtn"
-            data-page="notifications"
-            class="notification-button"
-            aria-label="Notifications"
-          >
-            🔔
-
-            <span
-              id="notificationBadge"
-              class="notification-badge"
-              hidden
-            >
-              0
-            </span>
-          </button>
-
-          <button
-            id="logoutBtn"
-            class="logout"
-          >
-            Logout
-          </button>
-
-        </div>
-      </header>
-
-      <main id="pageContent"></main>
-
-      <nav class="bottom-nav">
-
-        <button data-page="dashboard" class="nav-btn">
-          <span>⌂</span>
-          Home
-        </button>
-
-        <button data-page="messages" class="nav-btn">
-          <span>💬</span>
-          Messages
-        </button>
-
-        <button data-page="campaigns" class="nav-btn">
-          <span>📢</span>
-          Campaigns
-        </button>
-
-        <button data-page="ai" class="nav-btn">
-          <span>✦</span>
-          AI
-        </button>
-
-        <button data-page="reports" class="nav-btn">
-          <span>📊</span>
-          Reports
-        </button>
-
-      </nav>
-
-    </div>
-  `;
+      <a href="#pageContent" class="workspace-skip">Skip to workspace</a>
+      <button id="workspaceBackdrop" class="workspace-backdrop" aria-label="Close navigation" hidden></button>
+      <aside class="workspace-sidebar" id="workspaceSidebar" aria-label="Workspace navigation">
+        <div class="workspace-sidebar-brand"><a href="/" aria-label="MarketFlow home">${brandLogo()}</a><button class="workspace-menu-close workspace-icon-button" id="workspaceMenuClose" aria-label="Close navigation">${icon('close')}</button></div>
+        <div class="workspace-switcher"><span class="workspace-avatar">${initial}</span><span><strong>Your workspace</strong><small>Marketing, with direction</small></span><span class="workspace-switcher-dot"></span></div>
+        <p class="workspace-nav-caption">WORKSPACE</p>
+        <nav class="bottom-nav workspace-navigation" aria-label="Main navigation">${navigation.map(navButton).join('')}</nav>
+        <div class="workspace-tools"><p class="workspace-nav-caption">MANAGE</p><nav aria-label="Workspace tools">${tools.map(navButton).join('')}</nav></div>
+        <div class="workspace-sidebar-bottom"><div class="workspace-draft-note">${icon('shield')}<div><strong>Your decisions come first.</strong><p>Plans become drafts. You stay in control.</p></div></div>${themeChoices('workspace-sidebar-theme')}<div class="workspace-account"><span class="workspace-avatar">${initial}</span><div><strong>${name}</strong><small>${email}</small></div></div></div>
+      </aside>
+      <div class="workspace-main">
+        <header class="topbar">
+          <div class="workspace-breadcrumb"><button id="workspaceMenuToggle" class="workspace-icon-button" aria-label="Open navigation" aria-controls="workspaceSidebar" aria-expanded="false">${icon('menu')}</button><span class="workspace-breadcrumb-root">Workspace</span><span class="workspace-breadcrumb-separator">/</span><strong id="workspacePageTitle">Overview</strong></div>
+          <div class="topbar-actions">
+            <button id="workspaceThemeToggle" class="workspace-icon-button" type="button" aria-label="Switch to light mode">${icon('sun')}</button>
+            <button id="notificationBtn" data-page="notifications" class="notification-button workspace-icon-button" aria-label="Notifications">${icon('bell')}<span id="notificationBadge" class="notification-badge" hidden>0</span></button>
+            <span class="workspace-header-divider"></span>
+            <button id="logoutBtn" class="logout" aria-label="Logout">${icon('logout')}<span>Logout</span></button>
+          </div>
+        </header>
+        <main id="pageContent" tabindex="-1"><div class="workspace-loading" role="status">${icon('spark')}<span>Opening your workspace…</span></div></main>
+        <footer class="workspace-footer"><span>MarketFlow <span aria-hidden="true">/</span> Made for your next move.</span><span>Plan thoughtfully. Review before launch.</span></footer>
+      </div>
+    </div>`;
 }
+
 
 function campaignEscape(value = "") {
   return String(value).replace(
@@ -106,233 +74,31 @@ function campaignEscape(value = "") {
 }
 
 
-export function dashboardView(data = {}) {
-  const stats =
-    data.campaigns || {};
-
-  const recent =
-    data.recent_campaigns || [];
-
-  const activity =
-    data.recent_activity || [];
-
-  const recentCards = recent.length
-    ? recent.map(campaign => `
-        <button
-          class="dashboard-campaign-card"
-          data-review-campaign="${campaign.id}"
-        >
-          <div>
-            <small>
-              ${campaignEscape(
-                campaign.platform
-              )}
-            </small>
-
-            <strong>
-              ${campaignEscape(
-                campaign.name
-              )}
-            </strong>
-
-            <span>
-              ${campaignEscape(
-                campaign.product
-              )}
-            </span>
-          </div>
-
-          <span
-            class="
-              campaign-status
-              status-${campaign.status.toLowerCase()}
-            "
-          >
-            ${campaignEscape(
-              campaign.status
-            )}
-          </span>
-        </button>
-      `).join("")
-    : `
-      <div class="empty-card">
-        No campaigns yet.
-      </div>
-    `;
-
-  const activityRows = activity.length
-    ? activity.map(item => `
-        <article class="dashboard-activity-row">
-          <div class="campaign-event-dot"></div>
-
-          <div>
-            <strong>
-              ${campaignEscape(
-                item.campaign_name
-              )}
-            </strong>
-
-            <p>
-              ${campaignEscape(
-                item.message
-              )}
-            </p>
-
-            <small>
-              ${
-                new Date(
-                  item.created_at
-                ).toLocaleString()
-              }
-            </small>
-          </div>
-        </article>
-      `).join("")
-    : `
-      <div class="campaign-history-empty">
-        No activity yet.
-      </div>
-    `;
-
-  return `
-    <section class="page">
-
-      <section class="strategy-engine-hero">
-        <div class="strategy-engine-badge">✦ MARKETFLOW STRATEGY ENGINE</div>
-
-        <h1>
-          Not sure what campaign to run?
-          <span>MarketFlow will build the plan with you.</span>
-        </h1>
-
-        <p>
-          Answer a few business questions. MarketFlow will recommend the objective,
-          channel, budget logic, audience, creative plan, tracking checklist and first test —
-          then create the campaign draft for you.
-        </p>
-
-        <div class="strategy-engine-actions">
-          <button data-strategy-start="guided" class="strategy-primary">Guide Me</button>
-          <button data-strategy-start="quick" class="strategy-secondary">I Know What I Want</button>
-          <button data-strategy-last class="strategy-secondary">View Last Strategy</button>
-          <button data-page="strategy-history" class="strategy-secondary">Strategy History</button>
-        </div>
-
-        <small>
-          Recommendations are based on your inputs and business economics. Performance is never guaranteed.
-        </small>
-      </section>
-
-      <div class="hero">
-        <p>Welcome back 👋</p>
-
-        <h1>
-          Marketing<br>
-          Dashboard
-        </h1>
-
-        <span>
-          Your MarketFlow workspace.
-        </span>
-      </div>
-
-      <div class="dashboard-campaign-stats">
-
-        <article>
-          <small>Total</small>
-          <strong>
-            ${stats.total || 0}
-          </strong>
-        </article>
-
-        <article>
-          <small>Draft</small>
-          <strong>
-            ${stats.draft || 0}
-          </strong>
-        </article>
-
-        <article>
-          <small>Ready</small>
-          <strong>
-            ${stats.ready || 0}
-          </strong>
-        </article>
-
-        <article>
-          <small>Archived</small>
-          <strong>
-            ${stats.archived || 0}
-          </strong>
-        </article>
-
-      </div>
-
-      <h2 class="section-title">
-        Quick actions
-      </h2>
-
-      <div class="quick-grid">
-
-        <button data-page="campaign-create">
-          <span>📢</span>
-          New Campaign
-        </button>
-
-        <button data-page="campaigns">
-          <span>🗂️</span>
-          Campaigns
-        </button>
-
-        <button data-page="reports">
-          <span>📊</span>
-          Analytics
-        </button>
-
-        <button data-page="connections">
-          <span>🔗</span>
-          Connections
-        </button>
-
-      </div>
-
-      <div class="dashboard-section-head">
-        <div>
-          <p class="review-kicker">
-            RECENT
-          </p>
-
-          <h2>Recent Campaigns</h2>
-        </div>
-
-        <button
-          data-page="campaigns"
-          class="dashboard-view-all"
-        >
-          View all
-        </button>
-      </div>
-
-      <div class="dashboard-recent-list">
-        ${recentCards}
-      </div>
-
-      <div class="dashboard-section-head">
-        <div>
-          <p class="review-kicker">
-            ACTIVITY
-          </p>
-
-          <h2>Recent Activity</h2>
-        </div>
-      </div>
-
-      <div class="dashboard-activity-card">
-        ${activityRows}
-      </div>
-
-    </section>
-  `;
+export function dashboardView(data = {}, user = {}) {
+  const stats = data.campaigns || {};
+  const recent = data.recent_campaigns || [];
+  const activity = (data.recent_activity || []).slice(0, 4);
+  const firstName = campaignEscape((user.name || 'there').trim().split(/\s+/)[0]);
+  const counts = [
+    ['Total campaigns', stats.total || 0, 'campaigns', 'All your campaign plans', 'blue'],
+    ['Drafts', stats.draft || 0, 'file', 'Space to shape your next idea', 'purple'],
+    ['Ready to review', stats.ready || 0, 'check', 'Review before any launch', 'mint'],
+    ['Archived', stats.archived || 0, 'archive', 'Saved for future reference', 'slate'],
+  ];
+  const recentCards = recent.length ? recent.map(campaign => `<button class="dashboard-campaign-card" data-review-campaign="${campaign.id}"><span class="workspace-campaign-icon">${icon('campaigns')}</span><div><small>${campaignEscape(campaign.platform)}</small><strong>${campaignEscape(campaign.name)}</strong><span>${campaignEscape(campaign.product)}</span></div><span class="campaign-status status-${campaignEscape(campaign.status.toLowerCase())}">${campaignEscape(campaign.status)}</span><span class="workspace-row-arrow">${icon('arrow')}</span></button>`).join('')
+    : `<div class="workspace-empty"><span class="workspace-empty-icon">${icon('campaigns')}</span><h3>A little planning goes a long way.</h3><p>Your campaign drafts will appear here. Start with your business and let the strategy guide your first move.</p><button data-strategy-start="guided" class="workspace-text-action">Build your first strategy ${icon('arrow')}</button></div>`;
+  const activityRows = activity.length ? activity.map(item => `<article class="dashboard-activity-row"><span class="workspace-activity-icon">${icon('check')}</span><div><strong>${campaignEscape(item.campaign_name)}</strong><p>${campaignEscape(item.message)}</p><small>${campaignEscape(new Date(item.created_at).toLocaleString())}</small></div></article>`).join('')
+    : `<div class="workspace-activity-empty"><span class="workspace-activity-icon">${icon('history')}</span><div><strong>Every move, in one place.</strong><p>Campaign updates will appear here as you build and refine your plans.</p></div></div>`;
+  return `<section class="page workspace-dashboard">
+    <div class="workspace-page-heading"><div><p class="workspace-eyebrow">YOUR MARKETING, IN FOCUS</p><h1>Welcome back, ${firstName}<span class="workspace-heading-dot">.</span></h1><p class="subtitle">A clear view of your plans. A confident next step.</p></div><button data-page="campaign-create" class="workspace-create-button" aria-label="New campaign">${icon('plus')}<span>New campaign</span></button></div>
+    <div class="workspace-dashboard-top">
+      <section class="workspace-strategy-hero"><div class="workspace-hero-grid" aria-hidden="true"></div><div class="workspace-hero-copy"><span class="workspace-hero-badge">${icon('spark')} MARKETFLOW STRATEGY ENGINE</span><h2>Big ideas deserve<br>a clear <span>next move.</span></h2><p>Turn your business brief into a channel recommendation, a thoughtful budget, and a campaign you can build on.</p><div class="workspace-hero-actions"><button data-strategy-start="guided" class="workspace-mint-button">Guide Me ${icon('arrow')}</button><button data-strategy-start="quick" class="workspace-hero-secondary">I Know What I Want</button></div><small>${icon('shield')} Every recommendation starts with your business.</small></div><div class="workspace-flow-art" aria-hidden="true"><div class="workspace-flow-pill">${icon('file')}<span>YOUR BRIEF</span><i>01</i></div><div class="workspace-flow-connector"></div><div class="workspace-flow-core">${icon('spark')}<strong>A plan with purpose.</strong><span>Channel · Budget · Creative</span><div><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div><div class="workspace-flow-connector"></div><div class="workspace-flow-pill workspace-flow-draft">${icon('check')}<span>YOUR NEXT CAMPAIGN</span><i>Draft</i></div></div></section>
+      <section class="workspace-next-card"><div class="workspace-card-kicker">FROM IDEA TO ACTION <span>01 → 03</span></div><h2>A good plan starts here.</h2><ol class="workspace-workflow"><li><span>01</span><div><strong>Tell your story</strong><p>Your offer, audience, and ambition.</p></div></li><li><span>02</span><div><strong>Find your direction</strong><p>Understand the channel and the numbers.</p></div></li><li><span>03</span><div><strong>Make it your own</strong><p>Refine the strategy. Review your draft.</p></div></li></ol><button data-page="strategy-history" class="workspace-text-action">Explore your strategy history ${icon('arrow')}</button></section>
+    </div>
+    <div class="workspace-stat-grid">${counts.map(([label, count, symbol, help, accent]) => `<article class="workspace-stat-card"><div><span class="workspace-stat-label">${label}</span><span class="workspace-stat-icon workspace-accent-${accent}">${icon(symbol)}</span></div><strong>${Number(count).toLocaleString()}</strong><small>${help}</small></article>`).join('')}</div>
+    <div class="workspace-dashboard-bottom"><section class="workspace-panel workspace-campaign-panel"><div class="workspace-panel-head"><div><p class="workspace-eyebrow">KEEP THE MOMENTUM</p><h2>Recent campaigns</h2></div><button data-page="campaigns" class="workspace-text-action">View all ${icon('arrow')}</button></div><div class="dashboard-recent-list">${recentCards}</div></section><section class="workspace-panel workspace-activity-panel"><div class="workspace-panel-head"><div><p class="workspace-eyebrow">YOUR WORKSPACE PULSE</p><h2>Recent activity</h2></div><span class="workspace-live-dot"></span></div><div class="dashboard-activity-card">${activityRows}</div><div class="workspace-safety-note">${icon('shield')}<span>Accepting a strategy saves a campaign draft. Review it before any future launch.</span></div></section></div>
+    <div class="workspace-quick-links"><span>Make your next move</span><button data-workspace-agent>${icon('spark')} Strategy Agent ${icon('arrow')}</button><button data-page="connections">${icon('link')} Connect your channels ${icon('arrow')}</button><button data-page="reports">${icon('chart')} Explore your reports ${icon('arrow')}</button><button data-strategy-last>${icon('history')} Last strategy ${icon('arrow')}</button></div>
+  </section>`;
 }
 
 
@@ -838,8 +604,9 @@ export function aiView() {
       <p class="review-kicker">MARKETFLOW RESEARCH STRATEGY AGENT V2</p>
       <h1>Your built-in marketing strategist</h1>
       <p class="subtitle">
-        No OpenAI API. The agent gathers the brief, researches public web sources, reviews the Strategy Engine result and then shows the final plan.
+        Start with your business. Research public sources, review the recommendation, and shape a plan you understand.
       </p>
+      <button data-page="creative" class="workspace-create-button">${icon('file')} Open Creative Studio · write and refine content</button>
 
       <section class="strategy-agent-card">
         <div class="strategy-agent-status">
@@ -868,325 +635,7 @@ export function aiView() {
   `;
 }
 
-export function reportsView(
-  analytics,
-  days = 30
-) {
-  const money = value =>
-    Number(value || 0)
-      .toLocaleString(
-        undefined,
-        {
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 2
-        }
-      );
-
-  const number = value =>
-    Number(value || 0)
-      .toLocaleString();
-
-  const summary =
-    analytics.summary || {};
-
-  const comparison =
-    analytics.comparison || {};
-
-  const change = key => {
-    const value = comparison[key];
-
-    if (value === null) {
-      return "New";
-    }
-
-    if (!value) {
-      return "0%";
-    }
-
-    return `${value > 0 ? "+" : ""}${value}%`;
-  };
-
-  const topCampaigns =
-    analytics.top_campaigns || [];
-
-  const campaignRows =
-    topCampaigns.length
-      ? topCampaigns.map(
-          campaign => `
-            <div class="analytics-table-row">
-              <div>
-                <strong>${campaign.name}</strong>
-                <small>${campaign.provider}</small>
-              </div>
-
-              <span>
-                $${money(campaign.spend)}
-              </span>
-
-              <span>
-                $${money(campaign.revenue)}
-              </span>
-
-              <span>
-                ${campaign.roas}x
-              </span>
-            </div>
-          `
-        ).join("")
-      : `
-        <div class="analytics-empty-row">
-          No campaign performance data yet.
-        </div>
-      `;
-
-  return `
-    <section class="page analytics-page">
-
-      <div class="analytics-header">
-        <div>
-          <p class="analytics-kicker">
-            BUSINESS INTELLIGENCE
-          </p>
-
-          <h1>Business Analytics</h1>
-
-          <p class="subtitle">
-            Performance across your connected
-            marketing and sales channels.
-          </p>
-        </div>
-
-        <div class="analytics-period">
-          <button
-            data-analytics-days="7"
-            class="${days === 7 ? "active" : ""}"
-          >
-            7D
-          </button>
-
-          <button
-            data-analytics-days="30"
-            class="${days === 30 ? "active" : ""}"
-          >
-            30D
-          </button>
-
-          <button
-            data-analytics-days="90"
-            class="${days === 90 ? "active" : ""}"
-          >
-            90D
-          </button>
-        </div>
-      </div>
-
-      ${
-        !analytics.has_data
-          ? `
-            <div class="analytics-no-data">
-              <div class="big-icon">📊</div>
-
-              <h2>No analytics data yet</h2>
-
-              <p>
-                The analytics engine is ready.
-                Real results will appear here
-                after a marketing, sales or
-                advertising account is connected.
-              </p>
-
-              <button
-                data-page="connections"
-                class="primary-action"
-              >
-                Connect Data Source
-              </button>
-            </div>
-          `
-          : ""
-      }
-
-      <div class="analytics-kpis">
-
-        <article>
-          <small>Revenue</small>
-          <strong>
-            $${money(summary.revenue)}
-          </strong>
-          <span>
-            ${change("revenue")}
-          </span>
-        </article>
-
-        <article>
-          <small>Ad Spend</small>
-          <strong>
-            $${money(summary.spend)}
-          </strong>
-          <span>
-            ${change("spend")}
-          </span>
-        </article>
-
-        <article>
-          <small>ROAS</small>
-          <strong>
-            ${summary.roas || 0}x
-          </strong>
-          <span>Return on ad spend</span>
-        </article>
-
-        <article>
-          <small>Conversions</small>
-          <strong>
-            ${number(summary.conversions)}
-          </strong>
-          <span>
-            ${change("conversions")}
-          </span>
-        </article>
-
-        <article>
-          <small>Leads</small>
-          <strong>
-            ${number(summary.leads)}
-          </strong>
-          <span>
-            ${change("leads")}
-          </span>
-        </article>
-
-        <article>
-          <small>Message leads</small>
-          <strong>${number(summary.message_leads)}</strong>
-          <span>Included in leads; interest shown through a conversation</span>
-        </article>
-
-        <article>
-          <small>Messages</small>
-          <strong>${number(summary.messages)}</strong>
-          <span>Conversations are separate from leads and purchases</span>
-        </article>
-
-        <article>
-          <small>CPA</small>
-          <strong>
-            $${money(summary.cpa)}
-          </strong>
-          <span>Cost per conversion</span>
-        </article>
-
-        <article>
-          <small>CPC</small>
-          <strong>
-            $${money(summary.cpc)}
-          </strong>
-          <span>Cost per click</span>
-        </article>
-
-        <article>
-          <small>CTR</small>
-          <strong>
-            ${summary.ctr || 0}%
-          </strong>
-          <span>
-            ${number(summary.clicks)} clicks
-          </span>
-        </article>
-
-      </div>
-
-      <div class="analytics-chart-card">
-        <div class="analytics-card-title">
-          <div>
-            <h2>Revenue vs Spend</h2>
-            <p>
-              Daily financial performance
-            </p>
-          </div>
-        </div>
-
-        <div class="analytics-chart-wrap">
-          <canvas id="moneyChart"></canvas>
-        </div>
-      </div>
-
-      <div class="analytics-chart-card">
-        <div class="analytics-card-title">
-          <div>
-            <h2>Leads & Conversions</h2>
-            <p>
-              Business acquisition trend
-            </p>
-          </div>
-        </div>
-
-        <div class="analytics-chart-wrap">
-          <canvas id="funnelChart"></canvas>
-        </div>
-      </div>
-
-      <div class="analytics-chart-card">
-        <div class="analytics-card-title">
-          <div>
-            <h2>Channel Performance</h2>
-            <p>
-              Revenue contribution by source
-            </p>
-          </div>
-        </div>
-
-        <div class="analytics-chart-wrap analytics-chart-small">
-          <canvas id="platformChart"></canvas>
-        </div>
-      </div>
-
-      <div class="analytics-chart-card">
-
-        <div class="analytics-card-title">
-          <div>
-            <h2>Top Campaigns</h2>
-            <p>
-              Ranked by generated revenue
-            </p>
-          </div>
-        </div>
-
-        <div class="analytics-table-head">
-          <span>Campaign</span>
-          <span>Spend</span>
-          <span>Revenue</span>
-          <span>ROAS</span>
-        </div>
-
-        ${campaignRows}
-
-      </div>
-
-      <div class="analytics-data-status">
-        <span>
-          ${
-            analytics.data_status?.providers || 0
-          } connected data sources
-        </span>
-
-        <span>
-          ${
-            analytics.data_status?.last_updated
-              ? `Last sync: ${
-                  new Date(
-                    analytics.data_status.last_updated
-                  ).toLocaleString()
-                }`
-              : "Waiting for first data sync"
-          }
-        </span>
-      </div>
-
-    </section>
-  `;
-}
-
+export { reportsView } from './analyticsView.js';
 
 export function connectionsView() {
   return `
@@ -1436,6 +885,8 @@ export function settingsView(
         Manage your MarketFlow account
         and security.
       </p>
+
+      <section class="settings-card workspace-appearance-card"><div class="settings-card-head"><div><p class="workspace-eyebrow">MAKE IT YOURS</p><h2>Appearance</h2><p>A calm canvas for the way you work. Saved on this device.</p></div>${icon('sun')}</div><div class="workspace-theme-previews"><button type="button" data-theme-choice="light" aria-pressed="false"><span class="workspace-theme-preview workspace-theme-preview-light"><i></i><span><b></b><em></em><em></em></span></span><strong>Light</strong><small>A bright, clear workspace</small></button><button type="button" data-theme-choice="dark" aria-pressed="false"><span class="workspace-theme-preview workspace-theme-preview-dark"><i></i><span><b></b><em></em><em></em></span></span><strong>Deep Blue</strong><small>A rich navy workspace</small></button></div></section>
 
       <section class="settings-card">
 

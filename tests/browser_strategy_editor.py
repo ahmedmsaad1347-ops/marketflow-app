@@ -32,7 +32,7 @@ def run(api, frontend, output, outbox):
         page.route('http://localhost:3000/api/**', lambda route:
             route.continue_(url=route.request.url.replace('http://localhost:3000', api)))
         page.goto(frontend + '/app')
-        page.locator('[data-page="ai"]').click()
+        page.locator('.workspace-navigation [data-page="ai"]').click()
         page.evaluate('sid => localStorage.setItem("marketflow_strategy_agent_session", sid)', str(session))
         page.reload()
         page.get_by_role('button', name='Review / edit answers').click()
@@ -76,6 +76,14 @@ def run(api, frontend, output, outbox):
         assert revised['input']['objective'] == 'leads'
         assert revised['output']['research_evidence'] == {'sources': []}
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+        # Reuse saved strategy facts in the content studio without inventing a language/benefit.
+        page.locator('[data-creative-strategy]').click()
+        expect(page.locator('#creativeBriefForm [name="brand"]')).to_have_value(original['business_name'])
+        expect(page.locator('#creativeBriefForm [name="offer"]')).to_have_value(original['offer'])
+        expect(page.locator('#creativeBriefForm [name="language"]')).to_have_value('')
+        expect(page.locator('#creativeBriefForm [name="benefit"]')).to_have_value('')
+        page.go_back()
+        expect(page.locator('#acceptStrategyBtn')).to_be_visible()
         assert not errors, errors
         Path(output).mkdir(parents=True, exist_ok=True)
         page.get_by_role('button', name='Edit answers & rebuild').click()

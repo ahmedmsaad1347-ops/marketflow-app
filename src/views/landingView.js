@@ -1,4 +1,6 @@
-const mark = `<svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M5 22V10l7 8 7-12v16l8-11v15" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+import { brandLogo } from './ui.js';
+
+const mark = brandLogo({ compact: true });
 const arrow = `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14m-6-6 6 6-6 6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const check = `<svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m5 10 3 3 7-7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
@@ -8,7 +10,7 @@ export function landingView() {
       <a class="mf-skip" href="#mf-main">Skip to content</a>
       <header class="mf-nav-shell">
         <nav class="mf-nav mf-container" aria-label="Main navigation">
-          <a class="mf-brand" href="/" aria-label="MarketFlow home"><span class="mf-logo-mark">${mark}</span>MarketFlow</a>
+          <a class="mf-brand" href="/" aria-label="MarketFlow home">${brandLogo()}</a>
           <div class="mf-nav-links"><a href="#product">Product</a><a href="#how-it-works">How it works</a><a href="#questions">FAQs</a></div>
           <div class="mf-nav-actions"><button data-route="/login" class="mf-login">Sign in</button><button data-route="/signup" class="mf-button mf-button-small mf-button-outline">Get started ${arrow}</button></div>
         </nav>
@@ -85,6 +87,6 @@ export function landingView() {
         </div></section>
         <section class="mf-final mf-container"><div class="mf-final-glow" aria-hidden="true"></div><p class="mf-eyebrow">YOUR NEXT CHAPTER STARTS WITH A PLAN</p><h2>Less guesswork.<br><span>More forward.</span></h2><p>Bring your business. Find your next marketing move.</p><button data-route="/signup" class="mf-button mf-button-light">Get started with MarketFlow ${arrow}</button></section>
       </main>
-      <footer class="mf-footer mf-container"><a class="mf-brand" href="/">${mark}MarketFlow</a><span>© ${new Date().getFullYear()} MarketFlow</span><div><a href="#product">Product</a><a href="#questions">FAQs</a><button data-route="/login">Sign in</button></div></footer>
+      <footer class="mf-footer mf-container"><a class="mf-brand" href="/">${brandLogo()}</a><span>© ${new Date().getFullYear()} MarketFlow</span><div><a href="#product">Product</a><a href="#questions">FAQs</a><button data-route="/login">Sign in</button></div></footer>
     </div>`;
 }

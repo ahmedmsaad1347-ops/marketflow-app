@@ -313,7 +313,7 @@ class AuthService:
             response = await call_next(request)
             response.headers['X-Content-Type-Options'] = 'nosniff'
             response.headers['Referrer-Policy'] = 'no-referrer'
-            if request.url.path.startswith(('/api/auth/', '/api/account/')):
+            if request.url.path.startswith(('/api/auth/', '/api/account/', '/api/creative/')):
                 response.headers['Cache-Control'] = 'no-store'
                 response.headers['Pragma'] = 'no-cache'
             if self.config.production:

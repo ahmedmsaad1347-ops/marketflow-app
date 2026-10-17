@@ -1,3 +1,5 @@
+import { brandLogo } from './ui.js';
+
 const arrow = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const lock = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="3" stroke="currentColor" stroke-width="1.5"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 5v2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
 const google = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285f4" d="M21.6 12.23c0-.71-.06-1.39-.18-2.05H12v3.88h5.38a4.6 4.6 0 0 1-2 3.02v2.51h3.24c1.89-1.74 2.98-4.3 2.98-7.36Z"/><path fill="#34a853" d="M12 22c2.7 0 4.96-.9 6.62-2.41l-3.24-2.51c-.9.6-2.04.97-3.38.97-2.6 0-4.8-1.76-5.59-4.12H3.07v2.59A10 10 0 0 0 12 22Z"/><path fill="#fbbc05" d="M6.41 13.93a6 6 0 0 1 0-3.86V7.48H3.07a10 10 0 0 0 0 9.04l3.34-2.59Z"/><path fill="#ea4335" d="M12 5.95c1.47 0 2.79.51 3.83 1.52L18.7 4.6A9.6 9.6 0 0 0 12 2a10 10 0 0 0-8.93 5.48l3.34 2.59C7.2 7.71 9.4 5.95 12 5.95Z"/></svg>';
@@ -6,7 +8,7 @@ const facebook = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4599f
 function shell(content, mode = 'login') {
   const signup = mode === 'signup';
   return `<main class="mf-auth">
-    <header class="mf-auth-nav"><button class="mf-auth-brand" data-route="/" aria-label="MarketFlow home"><span class="mf-auth-mark">m<span>${arrow}</span></span>MarketFlow<span class="mf-auth-brand-dot">/</span></button><a href="/" data-route="/" class="mf-auth-home">Back to website <span>${arrow}</span></a></header>
+    <header class="mf-auth-nav"><button class="mf-auth-brand" data-route="/" aria-label="MarketFlow home">${brandLogo()}</button><a href="/" data-route="/" class="mf-auth-home">Back to website <span>${arrow}</span></a></header>
     <div class="mf-auth-grid">
       <aside class="mf-auth-story" aria-label="Your MarketFlow workspace">
         <span class="mf-auth-eyebrow"><i></i> YOUR NEXT CHAPTER STARTS HERE</span>

@@ -476,6 +476,7 @@ export function strategyResultView(response) {
       <section class="strategy-card creative-engine-card">
         <p class="review-kicker">CREATIVE ENGINE V1.3</p>
         <h2>Platform-ready campaign drafts</h2>
+        <button type="button" class="workspace-create-button" data-creative-strategy="${response.strategy_id}">Open this business in Creative Studio →</button>
         <p class="strategy-note">
           MarketFlow adapts the creative output to the selected campaign type.
           Review facts and brand voice before publishing.

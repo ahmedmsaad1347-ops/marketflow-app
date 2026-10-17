@@ -2,6 +2,12 @@ import "./styles/main.css";
 import "./styles/landing.css";
 import "./styles/strategy.css";
 import "./styles/auth.css";
+import "./styles/workspace.css";
+import "./styles/analytics.css";
+import "./styles/creative.css";
+import { initializeAppearance, setWorkspaceAppearance } from "./services/appearance.js";
+
+initializeAppearance();
 
 import { startApp } from "./controllers/appController.js";
 import { landingView } from "./views/landingView.js";
@@ -14,6 +20,7 @@ const app = document.querySelector("#app");
 
 export async function renderRoute() {
   const path = window.location.pathname;
+  setWorkspaceAppearance(path === "/app");
 
   if (path === "/") {
     app.innerHTML = landingView();

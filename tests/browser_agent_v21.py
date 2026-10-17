@@ -40,7 +40,7 @@ def run(api, frontend, output, outbox):
         })
         assert response.ok, response.text()
         page.goto(frontend + '/app')
-        page.locator('[data-page="ai"]').click()
+        page.locator('.workspace-navigation [data-page="ai"]').click()
         page.locator('#startStrategyAgentBtn').click()
         composer = page.locator('#strategyAgentComposer')
         composer.locator('textarea').fill(answers['business_name'])

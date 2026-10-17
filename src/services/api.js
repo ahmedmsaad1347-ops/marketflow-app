@@ -1,7 +1,8 @@
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || "http://localhost:3000").replace(/\/$/, "");
 let authConfigPromise;
 
-export function getAuthConfig() {
+export function getAuthConfig({ refresh = false } = {}) {
+  if (refresh) authConfigPromise = undefined;
   if (!authConfigPromise) {
     authConfigPromise = fetch(`${API_BASE}/api/auth/config`, {credentials: 'include', cache: 'no-store'})
       .then(async response => {

@@ -51,6 +51,9 @@ def run(api, frontend, outbox, output):
         page.get_by_role('button', name='Create my account').click()
         expect(page).to_have_url(frontend + '/verify-email')
         expect(page.locator('#localEmailNote')).to_be_visible()
+        expect(page.locator('#verificationHeading')).to_have_text('Email delivery is not enabled.')
+        page.get_by_role('button', name='Create a new local preview', exact=True).click()
+        expect(page.locator('#resendMessage')).to_contain_text('No email was sent')
         assert context.request.get(api + '/api/auth/me').status == 401
         link = latest_link(outbox, email, 'verify')
         page.goto(frontend + urlsplit(link).path + '#' + urlsplit(link).fragment)
@@ -71,7 +74,7 @@ def run(api, frontend, outbox, output):
         page.get_by_role('button', name='Forgot password?').click()
         page.locator('[name="email"]').fill(email)
         page.get_by_role('button', name='Send reset link').click()
-        expect(page.locator('#authNotice')).to_contain_text('If this address is eligible')
+        expect(page.locator('#authNotice')).to_contain_text('No email was sent')
         link = latest_link(outbox, email, 'reset')
         page.goto(frontend + urlsplit(link).path + '#' + urlsplit(link).fragment)
         assert '#' not in page.url

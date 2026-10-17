@@ -54,6 +54,26 @@ Port 587 requires STARTTLS; port 465 uses TLS from connection start. TLS certifi
 
 Sending runs after the HTTP response so delivery time does not reveal whether a reset address exists. Delivery failures generate a generic server log without recipients or links; the corresponding token is removed. The user may resend after fixing delivery. Background tasks are not a durable queue: restarting during delivery can lose an email; a production mail queue and monitoring remain an operational improvement.
 
+## Interactive Gmail setup in Termux
+
+For an initial development sender, enable [Google 2-Step Verification](https://myaccount.google.com/security) and create an [App Password](https://myaccount.google.com/apppasswords) named MarketFlow. Eligibility depends on Google/account policy; see [Google's app-password help](https://support.google.com/accounts/answer/185833). Use the app password, never your regular account password.
+
+```bash
+cd ~/marketflow-app
+source .venv/bin/activate
+python tools/setup_mail.py
+```
+
+The wizard accepts the sending Gmail address and a hidden 16-character app password, connects to `smtp.gmail.com:465` with certificate verification, and sends an explicit delivery test to that account. It only writes `.env` after the SMTP server accepts the message. It preserves unrelated settings, writes atomically with mode 0600, and refuses tracked/symlinked configuration files. No secrets are printed. Check Inbox/Spam for **MarketFlow email delivery test**; SMTP acceptance does not guarantee inbox delivery. This diagnostic message does not verify your account.
+
+Restart the existing API process with Ctrl+C, start it again, refresh Chrome, and sign in using your existing account to request a fresh verification link. Do not sign up again with the same email. Open that link in the original Chrome profile. The backend must load `AUTH_MAIL_MODE=smtp`; older processes keep their original configuration. Exported SMTP variables take precedence over `.env`, so clear conflicting local exports or start a properly configured API session if the wizard reports them.
+
+For a transactional provider, use `python tools/setup_mail.py --provider smtp` with its verified sender, host, credentials and TLS port 465/587. Existing transport and wizard both fail closed on invalid TLS or rejected authentication. Do not disable certificate checks or use ordinary Gmail credentials.
+
+The downloadable `marketflow-mail-setup.pyz` bundles the same setup wizard and SMTP transport and can configure the already-merged account release without requiring a code patch first. Run it with the project's virtualenv from the project directory. The private `.env` change remains on your phone and is never part of the patch.
+
+The local-preview UI now explicitly says no email was sent; resend/recovery responses report the configured delivery mode without revealing whether an email exists. The preview-opening utility reads `AUTH_OUTBOX_DIR` from the project's `.env`, matches recipients case-insensitively, and prints the private link as a fallback if Android fails to open the browser.
+
 ## Enable Google sign-in
 
 1. In [Google Auth Platform](https://console.cloud.google.com/auth/overview), configure your app's branding, audience and contact details. Request only `openid`, `email`, `profile`.

@@ -1,3 +1,8 @@
+import { syncAppearanceControls, setWorkspaceAppearance } from '../services/appearance.js';
+import { analyticsCSV } from '../services/analyticsFormatting.js';
+import { creativeStudioView } from '../views/creativeView.js';
+import { attachCreativeStudio, seedCreativeBrief } from './creativeController.js';
+
 import {
   getCurrentUser,
   logoutUser,
@@ -56,6 +61,7 @@ import {
 const app = document.querySelector("#app");
 
 let currentUser = null;
+let analyticsState = { days: 30, provider: 'all', currency: '', mode: 'money' };
 
 let strategyMode = "guided";
 
@@ -78,7 +84,10 @@ export async function startApp() {
 }
 
 async function showApp(user) {
-  app.innerHTML = appView(user.email);
+  setWorkspaceAppearance(true);
+  app.innerHTML = appView(user);
+  syncAppearanceControls();
+  attachWorkspaceShell();
 
   const logoutButton =
     document.querySelector("#logoutBtn");
@@ -90,6 +99,7 @@ async function showApp(user) {
     } catch (error) {
       logoutButton.disabled = false;
       logoutButton.textContent = "Retry sign out";
+      logoutButton.setAttribute('aria-label', 'Retry sign out');
       let message = document.querySelector('#logoutError');
       if (!message) {
         message = document.createElement('p');
@@ -101,6 +111,7 @@ async function showApp(user) {
       return;
     }
     currentUser = null;
+    analyticsState = { days: 30, provider: 'all', currency: '', mode: 'money' };
     try {
       for (const storage of [localStorage, sessionStorage]) {
         Object.keys(storage).filter(key => key.startsWith('marketflow_')).forEach(key => storage.removeItem(key));
@@ -252,7 +263,7 @@ async function showPage(
         await getDashboardOverview();
 
       pageContent.innerHTML =
-        dashboardView(response);
+        dashboardView(response, currentUser);
     }
 
     if (page === "strategy") {
@@ -293,21 +304,27 @@ async function showPage(
         aiView();
     }
 
+    if (page === 'creative') {
+      pageContent.innerHTML = creativeStudioView();
+      attachCreativeStudio();
+    }
+
     if (page === "reports") {
       const analytics =
-        await getAnalytics(30);
+        await getAnalytics(analyticsState.days, analyticsState);
 
       pageContent.innerHTML =
         reportsView(
           analytics,
-          30
+          analyticsState.days,
+          analyticsState.mode
         );
 
       renderAnalyticsCharts(
-        analytics
+        analytics, analyticsState.mode
       );
 
-      attachAnalyticsFilters();
+      attachAnalyticsFilters(analytics);
     }
 
     if (page === "connections") {
@@ -337,6 +354,7 @@ async function showPage(
     }
 
     setActiveNavigation(page);
+    syncAppearanceControls();
 
     attachNavigation();
     attachStrategyLaunchers();
@@ -752,56 +770,146 @@ function attachStrategyResultActions() {
 }
 
 
-function attachAnalyticsFilters() {
-  document
-    .querySelectorAll(
-      "[data-analytics-days]"
-    )
-    .forEach(button => {
-
-      button.onclick = async () => {
-        const days =
-          Number(
-            button.dataset.analyticsDays
-          );
-
-        const response =
-          await getAnalytics(days);
-
-        const pageContent =
-          document.querySelector(
-            "#pageContent"
-          );
-
-        pageContent.innerHTML =
-          reportsView(
-            response,
-            days
-          );
-
-        renderAnalyticsCharts(
-          response
-        );
-
-        attachNavigation();
-        attachAnalyticsFilters();
-
-        setActiveNavigation(
-          "reports"
-        );
-      };
-
-    });
+function attachAnalyticsFilters(data) {
+  const section = document.querySelector('.analytics-page');
+  if (!section) return;
+  analyticsState = { ...analyticsState, days: data.period.days,
+    provider: data.filters?.provider || 'all', currency: data.currency || '' };
+  const load = async patch => {
+    const requested = { ...analyticsState, ...patch };
+    const feedback = section.querySelector('#analyticsFeedback');
+    const controls = [...section.querySelectorAll('[data-analytics-days], #analyticsProvider, #analyticsCurrency, #analyticsRefresh')];
+    const previousDisabled = controls.map(control => control.disabled);
+    controls.forEach(control => { control.disabled = true; });
+    section.setAttribute('aria-busy', 'true');
+    feedback.hidden = false;
+    feedback.className = '';
+    feedback.textContent = 'Updating your report…';
+    try {
+      const response = await getAnalytics(requested.days, requested);
+      if (!section.isConnected) return;
+      analyticsState = requested;
+      document.querySelector('#pageContent').innerHTML = reportsView(response, requested.days, requested.mode);
+      renderAnalyticsCharts(response, requested.mode);
+      attachNavigation();
+      attachAnalyticsFilters(response);
+      const notice = document.querySelector('#analyticsFeedback');
+      notice.hidden = false;
+      notice.textContent = 'Report updated from saved source data.';
+    } catch (error) {
+      if (!section.isConnected) return;
+      feedback.className = 'is-error';
+      feedback.textContent = 'Could not update the report. Your previous results are still shown. Please retry.';
+      section.querySelector('#analyticsProvider').value = analyticsState.provider;
+      section.querySelector('#analyticsCurrency').value = analyticsState.currency;
+    } finally {
+      if (section.isConnected) {
+        section.removeAttribute('aria-busy');
+        controls.forEach((control,index) => { control.disabled = previousDisabled[index]; });
+      }
+    }
+  };
+  section.querySelectorAll('[data-analytics-days]').forEach(button => {
+    button.onclick = () => load({ days: Number(button.dataset.analyticsDays) });
+  });
+  section.querySelector('#analyticsProvider').onchange = event => load({ provider: event.target.value });
+  section.querySelector('#analyticsCurrency').onchange = event => load({ currency: event.target.value });
+  section.querySelector('#analyticsRefresh').onclick = () => load({});
+  section.querySelectorAll('[data-analytics-chart]').forEach(button => {
+    button.onclick = () => {
+      const mode = button.dataset.analyticsChart;
+      analyticsState.mode = mode;
+      section.dataset.chartMode = mode;
+      section.querySelectorAll('[data-analytics-chart]').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
+      section.querySelector('#analyticsTrendTitle').textContent = {money:'Revenue & spend',acquisition:'Leads & conversions',traffic:'Traffic over time'}[mode];
+      section.querySelector('#analyticsTrendDescription').textContent = 'Daily recorded results' + (mode === 'money' && data.currency ? ' · '+data.currency : '');
+      renderAnalyticsCharts(data, mode);
+    };
+  });
+  section.querySelector('#analyticsExport').onclick = () => {
+    const blob = new Blob([analyticsCSV(data)], {type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `marketflow-${data.period.start}-${data.period.end}-${data.currency || 'data'}.csv`;
+    anchor.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
 }
 
 
+function closeWorkspaceMenu() {
+  const shell = document.querySelector('.app-shell');
+  if (!shell) return;
+  shell.classList.remove('is-menu-open');
+  document.querySelector('#workspaceMenuToggle')?.setAttribute('aria-expanded', 'false');
+  const backdrop = document.querySelector('#workspaceBackdrop');
+  if (backdrop) backdrop.hidden = true;
+  const aside = document.querySelector('#workspaceSidebar');
+  aside?.removeAttribute('role');
+  aside?.removeAttribute('aria-modal');
+  document.body.style.overflow = '';
+}
+
+function attachWorkspaceShell() {
+  closeWorkspaceMenu();
+  const toggle = document.querySelector('#workspaceMenuToggle');
+  const sidebar = document.querySelector('#workspaceSidebar');
+  toggle.onclick = () => {
+    if (document.querySelector('.app-shell').classList.contains('is-menu-open')) {
+      closeWorkspaceMenu();
+      return;
+    }
+    document.querySelector('.app-shell').classList.add('is-menu-open');
+    toggle.setAttribute('aria-expanded', 'true');
+    document.querySelector('#workspaceBackdrop').hidden = false;
+    sidebar.setAttribute('role', 'dialog');
+    sidebar.setAttribute('aria-modal', 'true');
+    document.body.style.overflow = 'hidden';
+    document.querySelector('#workspaceMenuClose').focus();
+  };
+  document.querySelector('#workspaceMenuClose').onclick = () => { closeWorkspaceMenu(); toggle.focus(); };
+  document.querySelector('#workspaceBackdrop').onclick = () => { closeWorkspaceMenu(); toggle.focus(); };
+  sidebar.onkeydown = event => {
+    if (!document.querySelector('.app-shell').classList.contains('is-menu-open')) return;
+    if (event.key === 'Escape') { closeWorkspaceMenu(); toggle.focus(); }
+    if (event.key === 'Tab') {
+      const available = [...sidebar.querySelectorAll('a, button')].filter(element => element.getClientRects().length && !element.disabled);
+      const first = available[0], last = available.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    }
+  };
+}
+
+window.matchMedia('(min-width: 1100px)').addEventListener('change', event => {
+  if (event.matches) closeWorkspaceMenu();
+});
+
 
 function attachNavigation() {
+  document.querySelectorAll('[data-creative-strategy]').forEach(button => {
+    button.onclick = async () => {
+      button.disabled = true;
+      try {
+        const response = await getStrategy(Number(button.dataset.creativeStrategy));
+        const input = response.strategy?.input || {};
+        seedCreativeBrief({ brand: input.business_name || '', product: input.product || '',
+          audience: input.audience || '', offer: input.offer || '', benefit: '', cta: '',
+          channel: 'instagram', tone: 'friendly', goal: input.objective === 'sales' ? 'sales' : 'leads', language: '', constraints: '' });
+        await showPage('creative');
+      } catch (error) { alert(error.message); button.disabled = false; }
+    };
+  });
+  document.querySelectorAll('[data-workspace-agent]').forEach(button => {
+    button.onclick = () => showPage('ai');
+  });
   document
     .querySelectorAll("[data-page]")
     .forEach(button => {
 
       button.onclick = () => {
+        closeWorkspaceMenu();
         showPage(button.dataset.page);
       };
 
@@ -1802,13 +1910,12 @@ function attachAccountSettings() {
 
           const headerEmail =
             document.querySelector(
-              ".topbar small"
+              ".workspace-account small"
             );
 
-          if (headerEmail) {
-            headerEmail.textContent =
-              currentUser.email;
-          }
+          if (headerEmail) headerEmail.textContent = currentUser.email;
+          const accountName = document.querySelector('.workspace-account strong');
+          if (accountName) accountName.textContent = currentUser.name;
 
           message.textContent =
             "Profile updated successfully.";
@@ -1909,22 +2016,20 @@ function attachAccountSettings() {
 
 
 function setActiveNavigation(page) {
-  const activePage =
-    (
-      page === "campaign-create" ||
-      page === "campaign-edit"
-    )
-      ? "campaigns"
-      : page;
-
-  document
-    .querySelectorAll(".nav-btn")
-    .forEach(button => {
-
-      button.classList.toggle(
-        "active",
-        button.dataset.page === activePage
-      );
-
-    });
+  const campaignPages = ['campaign-create', 'campaign-edit', 'campaign-review'];
+  const activePage = campaignPages.includes(page) ? 'campaigns' : ['strategy', 'strategy-result', 'strategy-edit', 'strategy-agent-edit'].includes(page) ? 'ai' : page;
+  const labels = { dashboard: 'Overview', campaigns: 'Campaigns', ai: 'Strategy Agent', reports: 'Reports',
+    messages: 'Messages', creative: 'Creative Studio', connections: 'Connections', settings: 'Settings', notifications: 'Notifications',
+    'strategy-history': 'Strategy history', 'campaign-create': 'New campaign', 'campaign-edit': 'Edit campaign',
+    'campaign-review': 'Campaign review', strategy: 'Build your strategy', 'strategy-result': 'Your strategy' };
+  const title = document.querySelector('#workspacePageTitle');
+  if (title) title.textContent = labels[page] || 'Your workspace';
+  document.title = `${labels[page] || 'Workspace'} · MarketFlow`;
+  document.querySelectorAll('.nav-btn').forEach(button => {
+    const selected = button.dataset.page === activePage;
+    button.classList.toggle('active', selected);
+    if (selected) button.setAttribute('aria-current', 'page');
+    else button.removeAttribute('aria-current');
+  });
+  syncAppearanceControls();
 }

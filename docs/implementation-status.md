@@ -1,5 +1,11 @@
 # MarketFlow implementation handoff — 2026-10-16
 
+## Workspace, analytics and content update — 2026-10-17
+
+The internal workspace now has persistent Light/Deep Blue themes, responsive navigation and a new MarketFlow mark. Analytics adds currency/source/date filters, weighted ratios, prior-period comparisons, interactive charts and CSV. Creative Studio adds user-selected language, three directions, manual editing/rating/review, private version history and optional server-side OpenAI generation. See [workspace design](workspace-design.md) and [Creative Studio](creative-studio.md). Without model credentials, drafts are explicitly labelled guided templates. Live model/email/ad-provider operation remains dependent on external configuration.
+
+Validation: 87 unit/API checks, production build and browser checks for appearance, analytics, content creation, account access and saved strategy editing. Screenshots use disposable fictional fixtures.
+
 ## Account access update
 
 Professional responsive account screens, verified email signup, recovery, server-side Google/Facebook login,

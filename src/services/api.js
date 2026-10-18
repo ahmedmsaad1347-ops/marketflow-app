@@ -1,7 +1,8 @@
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || "http://localhost:3000").replace(/\/$/, "");
 let authConfigPromise;
 
-export function getAuthConfig() {
+export function getAuthConfig({ refresh = false } = {}) {
+  if (refresh) authConfigPromise = undefined;
   if (!authConfigPromise) {
     authConfigPromise = fetch(`${API_BASE}/api/auth/config`, {credentials: 'include', cache: 'no-store'})
       .then(async response => {
@@ -117,9 +118,10 @@ export function deleteCampaign(id) {
   });
 }
 
-export function getAnalytics(days = 30) {
+export function getAnalytics(days = 30, { provider = 'all', currency = '' } = {}) {
+  const query = new URLSearchParams({ days: String(days), provider, currency });
   return request(
-    `/api/analytics/overview?days=${days}`
+    `/api/analytics/overview?${query}`
   );
 }
 
@@ -268,3 +270,9 @@ export function reviseStrategyAgent(data) {
 export function editStrategyAgentAnswers(sessionId, data) {
   return request(`/api/strategy-agent/${sessionId}/answers`, {method: 'PUT', body: JSON.stringify(data)});
 }
+
+export const getCreativeStatus = () => request('/api/creative/status');
+export const getCreativeProjects = () => request('/api/creative/projects');
+export const getCreativeProject = id => request(`/api/creative/projects/${id}`);
+export const generateCreative = data => request('/api/creative/generate', {method:'POST',body:JSON.stringify(data)});
+export const saveCreativeSelection = (id,data) => request(`/api/creative/versions/${id}`, {method:'PATCH',body:JSON.stringify(data)});

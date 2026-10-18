@@ -48,7 +48,25 @@ export function attachAuthInteractions(navigate) {
     }
   });
 
-  getAuthConfig().then(config => {
+  let localMail = false;
+  const applyMailMode = local => {
+    localMail = local;
+    const note = root.querySelector('#localEmailNote');
+    if (note) note.hidden = !local;
+    const heading = root.querySelector('#verificationHeading');
+    if (heading) heading.textContent = local ? (currentToken ? 'Confirm your local preview.' : 'Email delivery is not enabled.') : 'Check your inbox.';
+    const description = root.querySelector('#verificationDescription');
+    if (description) description.textContent = local
+      ? (currentToken ? 'You opened the private preview link. Confirm below to open your workspace. No message was sent to your inbox.' : 'This is a local email preview. No verification email has been sent. Open the private link from Termux or configure email delivery.')
+      : 'Confirm your email to open your workspace. Open the latest link in the same browser where you requested it.';
+    const help = root.querySelector('#verificationHelp');
+    if (help) help.textContent = local
+      ? 'A local preview stays on this device. To create another, use the email you entered in this browser. Only the newest link works.'
+      : 'Check spam too. You must have started sign-up or signed in in this browser. Only the newest link works.';
+    const resendButton = root.querySelector('#resendVerificationForm button[type="submit"]');
+    if (resendButton) resendButton.textContent = local ? 'Create a new local preview' : 'Resend verification email';
+  };
+  getAuthConfig({ refresh: true }).then(config => {
     if (!root.isConnected) return;
     let enabled = 0;
     root.querySelectorAll('[data-provider]').forEach(button => {
@@ -63,8 +81,7 @@ export function attachAuthInteractions(navigate) {
       availability.hidden = enabled === 2;
       availability.textContent = enabled === 0 ? 'Social sign-in is coming soon. You can continue with email.' : 'Additional sign-in options will be available soon.';
     }
-    const local = root.querySelector('#localEmailNote');
-    if (local) local.hidden = !config.local_email_preview;
+    applyMailMode(config.local_email_preview);
   }).catch(() => showError('Cannot reach MarketFlow. Check that the API is running, then try again.'));
 
   const setStep = step => {
@@ -100,7 +117,7 @@ export function attachAuthInteractions(navigate) {
       if (form.id === 'resendVerificationForm') notice(err.message, 'resendMessage');
       else showError(err.message);
     } finally {
-      if (root.isConnected) { button.disabled = false; button.innerHTML = label; form.removeAttribute('aria-busy'); }
+      if (root.isConnected) { button.disabled = false; button.innerHTML = label; form.removeAttribute('aria-busy'); if (form.id === 'resendVerificationForm') applyMailMode(localMail); }
     }
   }
   root.querySelector('#realLoginForm')?.addEventListener('submit', event => {
@@ -142,8 +159,12 @@ export function attachAuthInteractions(navigate) {
     resend.addEventListener('submit', event => {
       event.preventDefault();
       perform(resend, async () => {
-        await authAction('resend-verification', {email: resend.elements.email.value});
-        notice('If eligible, a fresh link is on its way. Only the latest link works. If you changed browsers, sign in again first.', 'resendMessage');
+        const result = await authAction('resend-verification', {email: resend.elements.email.value});
+        const local = result.delivery_mode ? result.delivery_mode === 'file' : localMail;
+        applyMailMode(local);
+        notice(local
+          ? 'No email was sent. If eligible, a new private preview was saved on this device. Open it from Termux.'
+          : 'Request received. If eligible, an email will be sent. Check your inbox and spam folder. Only the latest link works.', 'resendMessage');
       });
     });
   }
@@ -152,7 +173,9 @@ export function attachAuthInteractions(navigate) {
     const form = event.currentTarget;
     perform(form, async () => {
       const result = await authAction('forgot-password', {email: form.elements.email.value});
-      notice(result.message + ' Check your spam folder too.');
+      const local = result.delivery_mode ? result.delivery_mode === 'file' : localMail;
+      applyMailMode(local);
+      notice(local ? 'No email was sent. If eligible, a private reset link was saved on this device. In Termux run: python tools/open_auth_email.py --purpose reset --open' : result.message + ' Check your spam folder too.');
     });
   });
   const reset = root.querySelector('#resetPasswordForm');

@@ -345,6 +345,24 @@ class AuthenticationTests(unittest.TestCase):
             db.execute("UPDATE sessions SET expires_at='2000-01-01T00:00:00'")
         self.assertEqual(self.client.get('/api/auth/me').status_code, 401)
 
+    def test_smtp_signup_transport_and_verification_use_the_same_real_flow(self):
+        with patch.object(self.main.auth, 'config', replace(self.main.auth.config, mail_mode='smtp')), \
+             patch.dict(os.environ, {'SMTP_HOST': 'smtp.gmail.com', 'SMTP_PORT': '465',
+                'SMTP_FROM': 'MarketFlow <sender@example.com>', 'SMTP_USERNAME': 'sender@example.com', 'SMTP_PASSWORD': 'fake-app-secret'}), \
+             patch('backend.mail_delivery.smtplib.SMTP_SSL') as smtp:
+            transport = smtp.return_value.__enter__.return_value
+            transport.send_message.return_value = {}
+            response = self.client.post('/api/auth/signup', json={'name': 'Email owner', 'email': 'owner@example.com', 'password': PASSWORD})
+            self.assertEqual(response.status_code, 202, response.text)
+            message = transport.send_message.call_args.args[0]
+            self.assertEqual(message['To'], 'owner@example.com')
+            self.assertEqual(message['Subject'], 'Confirm your MarketFlow email')
+            link = next(line for line in message.get_content().splitlines() if line.startswith('http'))
+            token = parse_qs(urlsplit(link).fragment)['token'][0]
+            self.assertEqual(self.client.post('/api/auth/verify-email', json={'token': token}).status_code, 200)
+            self.assertEqual(self.client.get('/api/auth/me').status_code, 200)
+            self.assertEqual(list(Path(self.main.auth.config.outbox).glob('*.eml')), [])
+
     def test_production_rejects_insecure_config_and_sets_host_cookies(self):
         with patch.dict(os.environ, {'APP_ENV': 'production', 'FRONTEND_URL': 'http://localhost:5173', 'API_PUBLIC_URL': 'http://localhost:3000'}):
             with self.assertRaises(RuntimeError): AuthConfig.from_env()

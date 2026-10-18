@@ -6,9 +6,7 @@ import os
 import logging
 import re
 import secrets
-import smtplib
 import sqlite3
-import ssl
 import time
 from contextlib import closing
 from dataclasses import dataclass
@@ -22,6 +20,7 @@ from email_validator import EmailNotValidError, validate_email
 from fastapi import BackgroundTasks, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field, validator
+from backend.mail_delivery import send_smtp, SMTPSettings
 
 ITERATIONS = 600_000
 GENERIC_MAIL = "If this address is eligible, you will receive an email with the next step."
@@ -143,6 +142,8 @@ class AuthConfig:
             raise RuntimeError('AUTH_MAIL_MODE must be smtp or file')
         if mode == 'smtp' and not all(os.getenv(key) for key in ('SMTP_HOST', 'SMTP_FROM')):
             raise RuntimeError('Set SMTP_HOST and SMTP_FROM before enabling SMTP delivery')
+        if mode == 'smtp':
+            SMTPSettings.from_environment().validate()
         version = os.getenv('FACEBOOK_LOGIN_GRAPH_VERSION', '')
         if version and not re.fullmatch(r'v\d+\.\d+', version):
             raise RuntimeError('FACEBOOK_LOGIN_GRAPH_VERSION must use the vNN.0 format')
@@ -231,15 +232,7 @@ class AuthService:
             with os.fdopen(fd, 'w') as stream:
                 stream.write(message.as_string())
             return
-        host, port = os.environ['SMTP_HOST'], int(os.getenv('SMTP_PORT', '587'))
-        context = ssl.create_default_context()
-        smtp_type = smtplib.SMTP_SSL if port == 465 else smtplib.SMTP
-        with smtp_type(host, port, timeout=15, **({'context': context} if port == 465 else {})) as smtp:
-            if port != 465:
-                smtp.starttls(context=context)
-            if os.getenv('SMTP_USERNAME'):
-                smtp.login(os.environ['SMTP_USERNAME'], os.environ.get('SMTP_PASSWORD', ''))
-            smtp.send_message(message)
+        send_smtp(message)
 
     def issue_mail(self, uid, email, purpose, binding='', background=None):
         token = secrets.token_urlsafe(48)
@@ -320,7 +313,7 @@ class AuthService:
             response = await call_next(request)
             response.headers['X-Content-Type-Options'] = 'nosniff'
             response.headers['Referrer-Policy'] = 'no-referrer'
-            if request.url.path.startswith(('/api/auth/', '/api/account/')):
+            if request.url.path.startswith(('/api/auth/', '/api/account/', '/api/creative/')):
                 response.headers['Cache-Control'] = 'no-store'
                 response.headers['Pragma'] = 'no-cache'
             if self.config.production:
@@ -381,7 +374,7 @@ class AuthService:
                     (digest(binding), time.time(), data.email)).fetchone()
             if user:
                 self.issue_mail(user['id'], user['email'], 'verify', binding, background)
-            return {'success': True, 'message': GENERIC_MAIL}
+            return {'success': True, 'message': GENERIC_MAIL, 'delivery_mode': self.config.mail_mode}
 
         @app.post('/api/auth/verify-email')
         def verify(data: TokenData, request: Request, response: Response):
@@ -409,7 +402,7 @@ class AuthService:
                 user = db.execute('SELECT * FROM users WHERE email=? COLLATE NOCASE', (data.email,)).fetchone()
             if user:
                 self.issue_mail(user['id'], user['email'], 'reset', background=background)
-            return {'success': True, 'message': GENERIC_MAIL}
+            return {'success': True, 'message': GENERIC_MAIL, 'delivery_mode': self.config.mail_mode}
 
         @app.post('/api/auth/reset-password')
         def reset(data: ResetData, request: Request, response: Response):

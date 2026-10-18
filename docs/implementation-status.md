@@ -2,7 +2,7 @@
 
 ## Workspace, analytics and content update — 2026-10-17
 
-The internal workspace now has persistent Light/Deep Blue themes, responsive navigation and a new MarketFlow mark. Analytics adds currency/source/date filters, weighted ratios, prior-period comparisons, interactive charts and CSV. Creative Studio adds user-selected language, three directions, manual editing/rating/review, private version history and optional server-side OpenAI generation. See [workspace design](workspace-design.md) and [Creative Studio](creative-studio.md). Without model credentials, drafts are explicitly labelled guided templates. Live model/email/ad-provider operation remains dependent on external configuration.
+The internal workspace now has persistent Light/Deep Blue themes, responsive navigation and a new MarketFlow mark. Analytics adds currency/source/date filters, weighted ratios, prior-period comparisons, interactive charts and CSV. Creative Studio adds user-selected language, three directions, manual editing/rating/review, private version history and optional server-side OpenAI generation. See [workspace design](workspace-design.md) and [Creative Studio](creative-studio.md). Creative Studio now defaults to a local, no-API content engine with 24 industry categories plus custom, full/single-funnel writing and eleven supported editing actions. Live optional model/email/ad-provider operation remains dependent on external configuration.
 
 Validation: 87 unit/API checks, production build and browser checks for appearance, analytics, content creation, account access and saved strategy editing. Screenshots use disposable fictional fixtures.
 

@@ -1,3 +1,5 @@
+import { attachCampaignWizard } from './campaignWizardController.js';
+import { attachCampaignPlanner } from './campaignPlannerController.js';
 import { syncAppearanceControls, setWorkspaceAppearance } from '../services/appearance.js';
 import { analyticsCSV } from '../services/analyticsFormatting.js';
 import { creativeStudioView } from '../views/creativeView.js';
@@ -598,6 +600,13 @@ async function showStrategyById(id, pushHistory = true) {
 function attachStrategyWizard() {
   const form = document.querySelector("#strategyForm");
   if (!form) return;
+  const syncBudgetMode=()=>{
+    const recommend=form.elements.budget_mode.value==='recommend';
+    form.elements.total_budget.required=!recommend;
+    form.elements.total_budget.disabled=recommend;
+    form.elements.creative_language.required=recommend;
+  };
+  form.elements.budget_mode.addEventListener('change',syncBudgetMode);syncBudgetMode();
 
   const guided = form.dataset.strategyMode === "guided";
   let step = 1;
@@ -677,6 +686,10 @@ function attachStrategyWizard() {
       sales_channel: data.get("sales_channel"),
       currency: data.get("currency"),
       total_budget: numberOrZero("total_budget"),
+      budget_mode:data.get('budget_mode')||'manual',
+      target_results:data.get('target_results')?numberOrZero('target_results'):null,
+      cost_per_result:numberOrZero('cost_per_result'),spend_ceiling:numberOrZero('spend_ceiling'),
+      creative_language:data.get('creative_language')||null,benefit:data.get('benefit')||'',
       campaign_days: Number(data.get("campaign_days") || 30),
       price: numberOrZero("price"),
       gross_margin_percent: numberOrZero("gross_margin_percent"),
@@ -1263,6 +1276,10 @@ function attachStrategyAgent() {
 
     composer.appendChild(input);
     composer.appendChild(button);
+    if(question.allow_recommendation){
+      const recommend=document.createElement('button');recommend.type='button';recommend.className='strategy-secondary';
+      recommend.textContent='Recommend a budget';recommend.onclick=()=>submitValue('recommend');composer.appendChild(recommend);
+    }
 
     if (question.optional) {
       const skip =
@@ -1430,6 +1447,8 @@ function attachCampaignForm() {
     );
 
   if (!form) return;
+  const campaignPlanning=attachCampaignPlanner(form);
+  attachCampaignWizard(form,campaignPlanning);
 
   form.addEventListener(
     "submit",
@@ -1469,7 +1488,8 @@ function attachCampaignForm() {
         budget:
           formData.get("budget"),
         goal:
-          formData.get("goal")
+          formData.get("goal"),
+        ...campaignPlanning()
       };
 
       try {
@@ -1757,6 +1777,7 @@ async function showCampaignReview(
     setActiveNavigation("campaigns");
 
     attachNavigation();
+    attachCampaignActions();
 
     window.scrollTo(0, 0);
 

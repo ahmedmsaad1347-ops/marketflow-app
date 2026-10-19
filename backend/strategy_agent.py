@@ -1,5 +1,6 @@
 
 import json
+import math
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -34,6 +35,10 @@ QUESTION_ORDER = [
     "has_tracking",
     "has_previous_sales",
     "has_video_creatives",
+    "target_results",
+    "cost_per_result",
+    "spend_ceiling",
+    "creative_language",
 ]
 
 
@@ -111,7 +116,8 @@ def _question_for(key, state):
             ],
         },
         "total_budget": {
-            "label": "What is the total paid-media budget for this test?",
+            "label": "What is your total paid-media budget? Enter it, or choose Recommend a budget.",
+            "allow_recommendation": True,
             "type": "number",
             "placeholder": "Example: 5000",
         },
@@ -168,7 +174,20 @@ def _question_for(key, state):
         },
     }
 
+    questions.update({
+        'target_results': {'label':'How many outcomes should the test budget plan for? Use impressions for Awareness, otherwise sales / qualified leads / conversations / clicks. This is a planning target, not promised delivery.', 'type':'number'},
+        'cost_per_result': {'label':'Enter a comparable cost per result assumption in your chosen currency (CPC for Traffic, CPM for Awareness). We need this when business economics are unavailable; it is not a guaranteed market price.', 'type':'number'},
+        'spend_ceiling': {'label':'What is the most you can spend on this test? Enter 0 for no ceiling. We will show any gap against the recommendation.', 'type':'number', 'optional':True},
+        'creative_language': {'label':'Which language should the proposed ad use?', 'type':'choice', 'options':[
+            {'label':'العربية · مصري','value':'ar-EG'}, {'label':'العربية · فصحى','value':'ar'}, {'label':'English','value':'en'}]},
+    })
     question = dict(questions[key])
+    if key in ('target_results','cost_per_result','spend_ceiling','creative_language') and state.get('budget_mode') != 'recommend':
+        question.update(skip=True, skip_value=None if key in ('target_results','creative_language') else 0)
+    if key == 'cost_per_result' and state.get('budget_mode') == 'recommend':
+        from backend.budget_planner import plan_budget
+        if plan_budget(state)['basis'] == 'economics_allowance':question.update(skip=True, skip_value=0)
+
 
     if key == "lead_to_sale_rate_percent" and objective not in {"leads", "messages"}:
         question["skip"] = True
@@ -177,15 +196,30 @@ def _question_for(key, state):
 
 
 def _coerce(key, value):
+    if key == 'total_budget' and value == 'recommend':return 0
+    if key == 'target_results':
+        try:
+            result = int(value)
+            if float(value) != result or not 1 <= result <= 10_000_000:raise ValueError()
+            return result
+        except (TypeError, ValueError, OverflowError):
+            raise HTTPException(400, 'Choose a whole planning target between 1 and 10,000,000.') from None
+    if key == 'creative_language' and value not in ('ar-EG','ar','en'):
+        raise HTTPException(400, 'Choose a supported content language.')
     if key in {
         "total_budget",
+        "cost_per_result",
+        "spend_ceiling",
         "price",
         "gross_margin_percent",
         "extra_variable_cost_per_order",
         "lead_to_sale_rate_percent",
     }:
         try:
-            return float(value or 0)
+            number = float(value or 0)
+            if not math.isfinite(number) or number < 0:raise ValueError()
+            if key == 'cost_per_result' and number <= 0:raise ValueError()
+            return number
         except Exception:
             raise HTTPException(status_code=400, detail="Please enter a valid number.")
 
@@ -216,7 +250,7 @@ def _next_key(state):
         question = _question_for(key, state)
 
         if question.get("skip"):
-            state[key] = 0
+            state[key] = question.get("skip_value", 0)
             continue
 
         return key
@@ -473,13 +507,14 @@ def register_strategy_agent(app, get_db, get_current_user):
         value = _coerce(key, answer.value)
 
         if not question.get("optional"):
-            if key == "total_budget" and float(value or 0) <= 0:
+            if key == "total_budget" and answer.value != "recommend" and float(value or 0) <= 0:
                 db.close()
                 raise HTTPException(status_code=400, detail="Budget must be greater than zero.")
             if isinstance(value, str) and not value:
                 db.close()
                 raise HTTPException(status_code=400, detail="This answer is required.")
 
+        if key == 'total_budget':state['budget_mode'] = 'recommend' if answer.value == 'recommend' else 'manual'
         state[key] = value
         next_key = _next_key(state)
         now = datetime.utcnow().isoformat()

@@ -1,3 +1,4 @@
+import { budgetExtraFields, budgetAdviceView } from './budgetPlannerView.js';
 function escapeHtml(value = "") {
   return String(value).replace(
     /[&<>"']/g,
@@ -105,6 +106,7 @@ export function strategyView(mode = "guided") {
             </label>
           </div>
 
+          <label>Budget choice<select name="budget_mode"><option value="manual">I have a budget</option><option value="recommend">Recommend a budget for me</option></select></label>
           <div class="strategy-field-grid">
             <label>
               Total campaign budget
@@ -135,6 +137,8 @@ export function strategyView(mode = "guided") {
             </select>
           </label>
 
+          <div class="strategy-budget-options">${budgetExtraFields()}</div>
+          <label>Main benefit for the proposed ad<textarea name="benefit" maxlength="1000" placeholder="Optional: a benefit you can support"></textarea></label>
           <p class="strategy-inline-note">
             MarketFlow now calculates contribution per sale after extra variable costs.
             For Leads or Messages, add the real lead/message-to-sale rate so the engine
@@ -431,6 +435,7 @@ export function strategyResultView(response) {
         <h2>${escapeHtml(budget.total_budget || 0)} ${escapeHtml(budget.currency || "")}</h2>
         <p>${escapeHtml(budget.daily_budget || 0)} ${escapeHtml(budget.currency || "")} / day · ${escapeHtml(budget.campaign_days || "")} days</p>
         <p>${escapeHtml(budget.note || "")}</p>
+        ${budgetAdviceView(budget.recommendation, strategy.ad_concept)}
         ${budget.planning_warning ? `<div class="strategy-review-warnings"><strong>Budget planning</strong><p>${escapeHtml(budget.planning_warning)}</p></div>` : ""}
       </section>
 

@@ -10,14 +10,16 @@ export async function attachCreativeStudio() {
   const section=document.querySelector('.creative-studio-page');
   if (!section) return;
   const form=section.querySelector('#creativeBriefForm');
-  let projectId=null, version=null, versions=[], drafts=new Map(), busy=false;
+  let projectId=null, version=null, versions=[], drafts=new Map(), busy=false, aiAvailable=false;
   const notice=(message,error=false)=>{
     const node=section.querySelector('#creativeNotice');
     node.hidden=false;node.className=error?'is-error':'';node.textContent=message;
   };
   const brief=()=>Object.fromEntries([...form.elements].filter(node=>node.name).map(node=>[node.name,node.value]));
   const remember=()=>{try {sessionStorage.setItem(DRAFT_KEY,JSON.stringify({brief:brief(),projectId,versionId:version?.id}));}catch {}};
-  const fillBrief=value=>{Object.entries(value).forEach(([key,value])=>{if(form.elements[key]) form.elements[key].value=value;});};
+  const fillBrief=value=>{Object.entries({funnel_stage:'full',proof:'',domain:'auto',content_length:'standard',generation_mode:'local',...value}).forEach(([key,value])=>{if(form.elements[key]) form.elements[key].value=value;});if(!aiAvailable)form.elements.generation_mode.value='local';};
+  const usingAI=()=>form.elements.generation_mode.value==='ai'&&aiAvailable;
+  const showEngine=()=>{section.querySelector('#creativeEngineStatus').textContent=usingAI()?'AI writing mode configured':'Local content engine · no API key needed';};
   const withBusy=async action=>{
     if(busy)return;
     busy=true;
@@ -38,7 +40,7 @@ export async function attachCreativeStudio() {
     const editor=section.querySelector('#creativeSelectionForm');
     if(!editor || !editor.reportValidity())return null;
     const fields=new FormData(editor);
-    return {variant_index:Number(editor.dataset.selectedIndex),content:Object.fromEntries(['angle','headline','hook','body','cta','visual_idea'].map(key=>[key,fields.get(key)])),
+    return {variant_index:Number(editor.dataset.selectedIndex),content:Object.fromEntries(['angle','headline','hook','body','cta','visual_idea','funnel_stage','objective','rationale'].map(key=>[key,fields.get(key)])),
       reviewed:fields.get('reviewed')==='on',rating:fields.get('rating')?Number(fields.get('rating')):null};
   };
   const saveChoice=async(payload)=>{
@@ -49,9 +51,9 @@ export async function attachCreativeStudio() {
     return version;
   };
   const renderVersion=(current,selected=null)=>{
-    version=current;
+    version=current;showEngine();
     const root=section.querySelector('#creativeResults');
-    root.innerHTML=creativeResultsView(current,selected);
+    root.innerHTML=creativeResultsView(current,selected,usingAI());
     const editor=root.querySelector('#creativeSelectionForm');
     const selectedIndex=Number(editor.dataset.selectedIndex);
     if(drafts.has(selectedIndex)) {
@@ -87,14 +89,20 @@ export async function attachCreativeStudio() {
       try {await navigator.clipboard.writeText(text);root.querySelector('#creativeSaveState').textContent='Content copied. Save your choice to keep any edits.';}
       catch {editor.elements.body.focus();editor.elements.body.select();notice('Clipboard access is unavailable. Select and copy the draft text manually.');}
     };
-    root.querySelectorAll('[data-creative-feedback]').forEach(button=>{button.onclick=()=>{const box=root.querySelector('#creativeFeedback');box.value=[box.value,button.dataset.creativeFeedback].filter(Boolean).join('. ');box.focus();};});
+    let editAction=null;
+    root.querySelectorAll('[data-creative-feedback]').forEach(button=>{button.onclick=()=>{const box=root.querySelector('#creativeFeedback');box.value=button.dataset.creativeFeedback;editAction=button.dataset.localEdit;box.focus();};});
+    root.querySelector('#creativeFeedback').oninput=()=>{editAction=null;};
     root.querySelector('#creativeRefine').onclick=()=>{
       if(!form.reportValidity())return;
       const feedback=root.querySelector('#creativeFeedback').value.trim();
       if(!feedback){notice('Tell your agent what to change before creating a revision.',true);root.querySelector('#creativeFeedback').focus();return;}
       const payload=editorData();if(!payload)return;
       const nextBrief=brief();
-      withBusy(async()=>{await saveChoice(payload);await generate(nextBrief,feedback,version.id);});
+      withBusy(async()=>{
+        await saveChoice(payload);
+        root.querySelector('#creativeSaveState').textContent='Your current choice is saved. Preparing the requested edit…';
+        await generate(nextBrief,feedback,version.id,usingAI()?null:editAction);
+      });
     };
   };
   const loadProject=async(id,versionId=null)=>{
@@ -106,24 +114,36 @@ export async function attachCreativeStudio() {
     if(selected)renderVersion(selected);
     remember();notice('Saved project loaded. Your versions are kept separately.');
   };
-  const generate=async(nextBrief,feedback='',sourceId=null)=>{
-    notice('Creating three content directions…');
-    const response=await generateCreative({brief:nextBrief,project_id:projectId,source_version_id:sourceId,feedback});
+  const generate=async(nextBrief,feedback='',sourceId=null,refinement=null)=>{
+    notice(sourceId?'Updating your selected copy…':nextBrief.funnel_stage==='full'?'Creating TOFU, MOFU and BOFU content…':'Creating three angles for your selected funnel stage…');
+    const response=await generateCreative({brief:nextBrief,project_id:projectId,source_version_id:sourceId,feedback,refinement});
     if(!section.isConnected)return;
     projectId=response.version.project_id;versions=[response.version,...versions];drafts=new Map();
     renderVersion(response.version);remember();await refreshLibrary();
-    notice(response.version.result.engine==='openai'?'Three AI directions saved. Choose one and make it yours.':'Three guided drafts saved. Connect the writing AI to apply detailed free-text revisions.');
+    const total=response.version.result.variants.length;
+    notice(sourceId?(response.version.result.engine==='openai'?`${total} changed AI direction${total===1?'':'s'} saved. Your previous choice is kept.`:`${total} changed local direction${total===1?'':'s'} saved. Edits: ${(response.version.result.applied_edits||[]).join(', ')}. Your original is kept.`):(response.version.result.engine==='openai'?'Three AI directions saved. Choose one and make it yours.':'Three local content directions saved. No AI or API key was used.'));
     section.querySelector('#creativeResults').scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth',block:'start'});
   };
-  form.oninput=remember;form.onchange=remember;
+  form.oninput=remember;form.onchange=event=>{
+    remember();
+    if(event.target.name==='generation_mode'){
+      const current=editorData();if(current)drafts.set(current.variant_index,current);
+      showEngine();if(version)renderVersion(version,current?.variant_index??null);
+    }
+  };
   form.onsubmit=event=>{event.preventDefault();const next=brief();withBusy(()=>generate(next));};
-  section.querySelector('#creativeNew').onclick=()=>{projectId=null;version=null;versions=[];drafts=new Map();form.reset();remember();section.querySelector('#creativeResults').innerHTML='<div class="creative-studio-empty"><h2>A new story starts here.</h2><p>Complete your brief and choose a content language.</p></div>';notice('New project. Your previous projects remain in the library.');};
+  section.querySelector('#creativeNew').onclick=()=>{projectId=null;version=null;versions=[];drafts=new Map();form.reset();showEngine();remember();section.querySelector('#creativeResults').innerHTML='<div class="creative-studio-empty"><h2>A new story starts here.</h2><p>Complete your brief and choose a content language.</p></div>';notice('New project. Your previous projects remain in the library.');};
   try {
     let saved;try{saved=JSON.parse(sessionStorage.getItem(DRAFT_KEY)||'null');}catch{}
     const [status]=await Promise.all([getCreativeStatus(),refreshLibrary()]);
     if(!section.isConnected)return;
-    section.querySelector('#creativeEngineStatus').textContent=status.ai_available?'AI writing agent connected':'Guided drafts available · AI writing is not connected';
+    aiAvailable=Boolean(status.ai_available);
+    const domainSelect=form.elements.domain;
+    (status.domains||[]).forEach(item=>{const option=document.createElement('option');option.value=item.id;option.textContent=item.label_en+' · '+item.label_ar;domainSelect.append(option);});
+    form.querySelector('option[value="ai"]').disabled=!aiAvailable;
+    showEngine();
     if(saved?.projectId){await loadProject(saved.projectId,saved.versionId);if(saved.brief)fillBrief(saved.brief);}
     else if(saved?.brief)fillBrief(saved.brief);
+    showEngine();
   }catch(error){if(section.isConnected)notice('Could not load your creative library. Refresh this page to retry.',true);}
 }

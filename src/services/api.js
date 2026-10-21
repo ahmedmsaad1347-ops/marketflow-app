@@ -276,3 +276,7 @@ export const getCreativeProjects = () => request('/api/creative/projects');
 export const getCreativeProject = id => request(`/api/creative/projects/${id}`);
 export const generateCreative = data => request('/api/creative/generate', {method:'POST',body:JSON.stringify(data)});
 export const saveCreativeSelection = (id,data) => request(`/api/creative/versions/${id}`, {method:'PATCH',body:JSON.stringify(data)});
+
+export function previewCampaignPlan(data) {
+  return request('/api/campaign-planner/preview', {method:'POST',body:JSON.stringify(data)});
+}

@@ -6,6 +6,10 @@ The internal workspace now has persistent Light/Deep Blue themes, responsive nav
 
 Validation: 87 unit/API checks, production build and browser checks for appearance, analytics, content creation, account access and saved strategy editing. Screenshots use disposable fictional fixtures.
 
+## Guided campaigns and budget advisor — 2026-10-19
+
+Campaigns now provides a responsive three-step brief/budget/review journey, relevant setup suggestions, local ad concepts and persisted budget assumptions. Strategy forms and the conversational agent can recommend a test budget from a supplied cost or disclosed business-economics allowance. Actual market costs are not invented, ceilings are respected, and manual budgets remain supported. See [campaign planner](campaign-planner.md). Validation:119 unit/API checks, production build, campaign browser journey and saved-strategy editor regression.
+
 ## Account access update
 
 Professional responsive account screens, verified email signup, recovery, server-side Google/Facebook login,

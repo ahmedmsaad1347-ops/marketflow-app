@@ -33,3 +33,13 @@ Stop both phone servers; download the new pyz into Android Download and run:
 Installer creates/resumes `updates/creative-funnel-v2`, applies the release commit and pushes without force. It preserves private `.env`/DB, rejects dirty tracked work and incomplete Git operations. User creates/merges the printed PR from their own account, pulls main, restarts API and Vite separately, opens Creative Studio and leaves Writing engine=Local. No paid key needed. The full guide includes a fictional Arabic FlowDesk example and exact restart commands.
 
 Use short Egyptian Arabic updates and one easy installer command. No subagents without explicit user/AGENTS authorization. Clearly distinguish ready source from deployed phone behavior and avoid claiming that changes were pushed or installed without evidence.
+
+## Guided campaigns and budget advisor — 2026-10-19
+
+The user explicitly requested automatic budget/ad-idea proposals in Strategy and campaign creation, then a modern Campaigns section with useful questions, solutions and suggestions. They said to finish now and return tomorrow. Scope is implemented on `codex/budget-concept-planner`, based on verified remote main `8529d4e` (which contains the previous tested local-content release). See `campaign-planner.md` and `termux-campaign-planner.txt`.
+
+Campaigns has a modern list, guided three-step builder/editor, saved review, target-specific guidance, budget/creative/setup proposals and persisted planning context. Budget math uses a supplied cost assumption or a clearly disclosed economics allowance, not fabricated market benchmarks; a ceiling is respected and shortages are explicit. Missing bases return needs_inputs with an ad idea. Manual budgets remain usable. No API key or new dependency is required; nothing publishes or spends money.
+
+Validation:119 unit/API tests, production build, responsive campaign browser journey and old saved-strategy editor regression pass. Generated screenshots are fictional fixtures. Preserve the previous local Content Engine and user account/campaign data. The planner adds only a nullable planning_json column to campaigns. Google channel-priority and Meta policy/brand-format items from the research review are not implemented in this release.
+
+Deliver the NEW `/workspace/marketflow-campaign-planner-update.pyz` and its source ZIP/guide; branch `updates/campaign-planner-v1`. The user runs it through their existing Termux workflow, creates/merges its PR and restarts both servers. Cloud writes previously returned403; no retry/push is warranted. Before final delivery, replay the installer/patch, verify repeat installation/private files, and record final evidence in `/workspace/MarketFlow-RESUME.md`. Do not imply work continues after the turn ends.

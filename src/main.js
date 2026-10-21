@@ -5,6 +5,7 @@ import "./styles/auth.css";
 import "./styles/workspace.css";
 import "./styles/analytics.css";
 import "./styles/creative.css";
+import "./styles/budgetPlanner.css";
 import { initializeAppearance, setWorkspaceAppearance } from "./services/appearance.js";
 
 initializeAppearance();

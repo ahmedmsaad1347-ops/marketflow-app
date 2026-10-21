@@ -21,6 +21,8 @@ from fastapi.responses import RedirectResponse, JSONResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.exception_handlers import request_validation_exception_handler
 from pydantic import BaseModel, Field
+from typing import Optional
+from backend.budget_planner import CampaignPlanInput, campaign_plan, budget_label
 from backend.auth import AuthConfig, AuthService
 from backend.analytics import overview as build_analytics_overview
 from backend.creative_studio import init_creative_tables, register_creative_studio
@@ -370,6 +372,8 @@ def init_db():
     """)
 
     init_creative_tables(db)
+    if 'planning_json' not in {row['name'] for row in db.execute('PRAGMA table_info(campaigns)')}:
+        db.execute('ALTER TABLE campaigns ADD COLUMN planning_json TEXT')
     analytics_columns = {row['name'] for row in db.execute('PRAGMA table_info(analytics_daily)')}
     if 'message_leads' not in analytics_columns:
         db.execute('ALTER TABLE analytics_daily ADD COLUMN message_leads REAL NOT NULL DEFAULT 0')
@@ -380,6 +384,7 @@ def init_db():
 
 auth = AuthService(get_db, AUTH_CONFIG)
 init_db()
+
 auth.migrate()
 get_current_user = auth.current_user
 auth.register(app)
@@ -401,6 +406,8 @@ class CampaignData(BaseModel):
     platform: str
     budget: str
     goal: str
+    planner: Optional[CampaignPlanInput] = None
+    planner_apply_budget: bool = False
 
 
 class CampaignUpdateData(BaseModel):
@@ -411,6 +418,8 @@ class CampaignUpdateData(BaseModel):
     platform: str
     budget: str
     goal: str
+    planner: Optional[CampaignPlanInput] = None
+    planner_apply_budget: bool = False
 
 
 class CampaignStatusData(BaseModel):
@@ -435,15 +444,44 @@ def health():
     }
 
 
+def prepare_campaign_planning(campaign):
+    if campaign.planner is None:
+        if campaign.planner_apply_budget:raise HTTPException(422, 'Prepare a budget proposal before applying it.')
+        return None
+    goals = {'Sales':'sales', 'Leads':'leads', 'Messages':'messages', 'Website traffic':'traffic', 'Brand awareness':'awareness'}
+    objective = goals.get(campaign.goal)
+    if not objective:
+        raise HTTPException(422, 'Choose a supported campaign goal before using the planner.')
+    try:
+        brief = CampaignPlanInput.parse_obj({**campaign.planner.dict(), 'product':campaign.product, 'audience':campaign.audience, 'country':campaign.country,
+            'platform':campaign.platform, 'objective':objective})
+    except ValueError:
+        raise HTTPException(422, 'Review the campaign details before applying this plan.') from None
+    result = campaign_plan(brief)
+    if campaign.planner_apply_budget:
+        if result['budget']['status'] != 'ready':
+            raise HTTPException(422, 'The budget needs more inputs. Add a cost assumption or business economics.')
+        campaign.budget = budget_label(result['budget'])
+    return json.dumps({'input':brief.dict(), 'output':result, 'applied_budget':campaign.planner_apply_budget}, ensure_ascii=False)
+
+
+@app.post('/api/campaign-planner/preview')
+def preview_campaign_plan(data: CampaignPlanInput, response: Response, user=Depends(get_current_user)):
+    response.headers['Cache-Control'] = 'no-store'
+    return {'success':True, 'plan':campaign_plan(data)}
+
+
 @app.post("/api/campaigns/preview")
 def campaign_preview(
     campaign: CampaignData,
     user=Depends(get_current_user)
 ):
+    snapshot = prepare_campaign_planning(campaign)
     return {
         "success": True,
         "campaign": {
-            **campaign.dict(),
+            **campaign.dict(exclude={'planner', 'planner_apply_budget'}),
+            "planning_json":snapshot,
             "status": "Draft",
             "readyToReview": True
         }
@@ -455,6 +493,7 @@ def create_campaign(
     campaign: CampaignData,
     user=Depends(get_current_user)
 ):
+    snapshot = prepare_campaign_planning(campaign)
     db = get_db()
 
     cursor = db.execute("""
@@ -487,6 +526,9 @@ def create_campaign(
     db.commit()
 
     campaign_id = cursor.lastrowid
+    if snapshot:
+        db.execute('UPDATE campaigns SET planning_json=? WHERE id=? AND user_id=?', (snapshot, campaign_id, user['id']))
+        db.commit()
 
     row = db.execute("""
         SELECT *
@@ -622,6 +664,7 @@ def update_campaign(
             detail="Campaign not found"
         )
 
+    snapshot = prepare_campaign_planning(campaign)
     db.execute("""
         UPDATE campaigns
         SET
@@ -646,6 +689,10 @@ def update_campaign(
         user["id"]
     ))
 
+    if campaign.planner is not None:
+        db.execute('UPDATE campaigns SET planning_json=? WHERE id=? AND user_id=?', (snapshot, campaign_id, user['id']))
+    else:
+        db.execute('UPDATE campaigns SET planning_json=NULL WHERE id=? AND user_id=?', (campaign_id, user['id']))
     db.commit()
 
     row = db.execute("""
@@ -721,6 +768,9 @@ def duplicate_campaign(
     db.commit()
 
     new_id = cursor.lastrowid
+    if original['planning_json']:
+        db.execute('UPDATE campaigns SET planning_json=? WHERE id=? AND user_id=?', (original['planning_json'], new_id, user['id']))
+        db.commit()
 
     row = db.execute("""
         SELECT *

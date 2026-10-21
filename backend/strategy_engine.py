@@ -4,6 +4,8 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from typing import Literal, Optional
+from backend.budget_planner import BudgetInputs, plan_budget, ad_concept
 from backend.google_ads_capabilities import (
     daily_micros, demand_gen_budget_check, load_currency_minimum,
     register_currency_capabilities,
@@ -14,7 +16,7 @@ CAPABILITY_SNAPSHOT = "2026-10-09"
 ENGINE_VERSION = "strategy-v3.1-business-identity-creative-v1.3-2026-10"
 
 
-class StrategyRequest(BaseModel):
+class StrategyRequest(BudgetInputs):
     mode: str = "guided"
     business_name: str = Field(min_length=2, max_length=120)
     product: str = Field(min_length=2, max_length=240)
@@ -25,7 +27,7 @@ class StrategyRequest(BaseModel):
     demand_type: str = Field(default="mixed", max_length=40)
     sales_channel: str = Field(default="website", max_length=40)
     currency: str = Field(default="USD", min_length=2, max_length=12)
-    total_budget: float = Field(gt=0)
+    total_budget: float = Field(default=0, ge=0, le=1_000_000_000_000)
     campaign_days: int = Field(default=30, ge=1, le=365)
     price: float = Field(default=0, ge=0)
     gross_margin_percent: float = Field(default=0, ge=0, le=100)
@@ -36,6 +38,8 @@ class StrategyRequest(BaseModel):
     has_previous_sales: bool = False
     has_video_creatives: bool = False
     notes: str = Field(default="", max_length=1000)
+    creative_language: Optional[Literal["ar-EG", "ar", "en"]] = None
+    benefit: str = Field(default="", max_length=1000)
 
 
 def _round(value):
@@ -1670,6 +1674,11 @@ def build_strategy(data, *, google_currency_minimum=None):
     objective = data.objective.strip().lower()
     currency = data.currency.strip().upper()
     days = max(data.campaign_days, 1)
+    recommendation = plan_budget(data)
+    if recommendation['status'] != 'ready':
+        raise HTTPException(422, 'To recommend a budget, supply a cost per result assumption, or sale value, positive contribution margin and (for leads/messages) the close rate. Traffic needs CPC; awareness needs CPM. Your answers have not been discarded.')
+    if data.budget_mode == 'recommend':
+        data = data.copy(update={'total_budget': recommendation['total_budget']})
     daily_budget = data.total_budget / days
 
     business_profile = _business_profile(data)
@@ -1879,6 +1888,7 @@ def build_strategy(data, *, google_currency_minimum=None):
     ]
 
     budget_plan = {
+        "recommendation": recommendation,
         "currency": currency,
         "total_budget": _round(data.total_budget),
         "campaign_days": days,
@@ -1974,6 +1984,7 @@ def build_strategy(data, *, google_currency_minimum=None):
         ),
         "why": why,
         "budget_plan": budget_plan,
+        "ad_concept": ad_concept({**data.dict(), 'platform':winner['provider']}) if data.creative_language else None,
         "economics": economics,
         "audience_plan": audience_plan,
         "creative_plan": creative,
@@ -2308,6 +2319,12 @@ def register_strategy_engine(app, get_db, get_current_user):
         ))
 
         campaign_id = cursor.lastrowid
+        if output.get('ad_concept') or ((output.get('budget_plan') or {}).get('recommendation') or {}).get('mode') == 'recommend':
+            snapshot = {'input':json.loads(row['input_json']),
+                        'output':{'budget':output['budget_plan'].get('recommendation'), 'ad_concept':output.get('ad_concept'), 'engine':'local'},
+                        'applied_budget':(output['budget_plan'].get('recommendation') or {}).get('mode') == 'recommend'}
+            db.execute('UPDATE campaigns SET planning_json=? WHERE id=? AND user_id=?',
+                       (json.dumps(snapshot, ensure_ascii=False), campaign_id, user['id']))
 
         db.execute("""
             UPDATE marketing_strategies

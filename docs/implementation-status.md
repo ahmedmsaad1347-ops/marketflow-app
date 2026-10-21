@@ -88,3 +88,7 @@ these tests.
    specification requires.
 
 Each stage needs its own acceptance checks before being called complete.
+
+## Owner console — 2026-10-21
+
+Added a role-protected owner workspace with real platform counts, account suspension/restoration and session revocation, audited campaign/content/strategy review, paginated creative history, announcements, customer-write maintenance controls and bounded sanitized error telemetry. First-owner setup is local, requires an existing verified account/password and does not auto-grant signup privileges. Customer API isolation remains unchanged. See [owner console](owner-console.md). Validation:136 unit/API tests (17 owner cases), production build and actual-backend browser checks in both themes across320/390/768/1440px. Actual phone owner activation is pending deployment.

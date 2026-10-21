@@ -63,6 +63,14 @@ export function getCurrentUser() {
   return request("/api/auth/me");
 }
 
+export function ownerRequest(path, options = {}) {
+  return request('/api/owner' + path, options);
+}
+
+export function getPlatformNotice() {
+  return request('/api/platform/notice');
+}
+
 export function logoutUser() {
   return request("/api/auth/logout", {
     method: "POST"

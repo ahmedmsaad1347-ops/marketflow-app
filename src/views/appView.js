@@ -31,6 +31,7 @@ export function appView(user) {
     ['ai', 'spark', 'Strategy Agent'], ['reports', 'chart', 'Reports'], ['messages', 'message', 'Messages'],
   ];
   const tools = [['creative', 'file', 'Creative Studio'], ['strategy-history', 'history', 'Strategy history'], ['connections', 'link', 'Connections'], ['settings', 'settings', 'Settings']];
+  if(account.platform_role==='owner')tools.push(['owner','shield','Owner console']);
   const navButton = ([page, symbol, label]) => `<button data-page="${page}" class="nav-btn" aria-label="${label}">${icon(symbol)}<span class="workspace-nav-label">${label}</span>${page === 'ai' ? '<span class="workspace-agent-tag">NEW</span>' : ''}</button>`;
   return `
     <div class="app-shell">

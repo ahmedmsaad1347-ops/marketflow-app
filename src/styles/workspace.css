@@ -469,3 +469,6 @@
 @media (prefers-reduced-motion: reduce) {
   .app-shell *, .app-shell *::before, .app-shell *::after { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }
+.platform-notice { margin:16px 34px 0; padding:14px 18px; border:1px solid var(--mf-border); border-left:3px solid var(--mf-success); border-radius:10px; color:var(--mf-text); background:var(--mf-surface); line-height:1.6; overflow-wrap:anywhere; }
+.platform-notice[hidden] { display:none; }
+@media(max-width:760px) { .platform-notice { margin:14px 20px 0; } }

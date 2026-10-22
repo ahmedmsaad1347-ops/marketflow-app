@@ -1,4 +1,5 @@
 import { attachCampaignWizard } from './campaignWizardController.js';
+import { mountOwnerDashboard } from './ownerController.js';
 import { attachCampaignPlanner } from './campaignPlannerController.js';
 import { syncAppearanceControls, setWorkspaceAppearance } from '../services/appearance.js';
 import { analyticsCSV } from '../services/analyticsFormatting.js';
@@ -7,6 +8,7 @@ import { attachCreativeStudio, seedCreativeBrief } from './creativeController.js
 
 import {
   getCurrentUser,
+  getPlatformNotice,
   logoutUser,
   updateProfile,
   changePassword,
@@ -63,7 +65,23 @@ import {
 const app = document.querySelector("#app");
 
 let currentUser = null;
+let noticeTicket = 0;
 let analyticsState = { days: 30, provider: 'all', currency: '', mode: 'money' };
+
+async function refreshPlatformNotice() {
+  const ticket=++noticeTicket;
+  try {
+    const data=await getPlatformNotice();
+    if(ticket!==noticeTicket||!currentUser)return;
+    const header=document.querySelector('.app-shell .topbar');
+    if(!header)return;
+    let banner=document.querySelector('#platformNotice');
+    if(!banner){banner=document.createElement('div');banner.id='platformNotice';banner.className='platform-notice';banner.setAttribute('role','status');header.after(banner);}
+    const paused=data.maintenance?(currentUser.platform_role==='owner'?'Member workspace changes are paused.':'Workspace changes are temporarily paused. Your saved work is available.') : '';
+    banner.textContent=[data.announcement,paused].filter(Boolean).join(' ');
+    banner.hidden=!banner.textContent;
+  } catch { /* API mutations still enforce the actual maintenance state. */ }
+}
 
 let strategyMode = "guided";
 
@@ -90,6 +108,7 @@ async function showApp(user) {
   app.innerHTML = appView(user);
   syncAppearanceControls();
   attachWorkspaceShell();
+  refreshPlatformNotice();
 
   const logoutButton =
     document.querySelector("#logoutBtn");
@@ -344,6 +363,10 @@ async function showPage(
         );
     }
 
+    if (page === 'owner') {
+      await mountOwnerDashboard(pageContent,currentUser);
+    }
+
     if (page === "settings") {
       pageContent.innerHTML =
         settingsView(
@@ -356,6 +379,7 @@ async function showPage(
     }
 
     setActiveNavigation(page);
+    refreshPlatformNotice();
     syncAppearanceControls();
 
     attachNavigation();
@@ -2040,7 +2064,7 @@ function setActiveNavigation(page) {
   const campaignPages = ['campaign-create', 'campaign-edit', 'campaign-review'];
   const activePage = campaignPages.includes(page) ? 'campaigns' : ['strategy', 'strategy-result', 'strategy-edit', 'strategy-agent-edit'].includes(page) ? 'ai' : page;
   const labels = { dashboard: 'Overview', campaigns: 'Campaigns', ai: 'Strategy Agent', reports: 'Reports',
-    messages: 'Messages', creative: 'Creative Studio', connections: 'Connections', settings: 'Settings', notifications: 'Notifications',
+    messages: 'Messages', creative: 'Creative Studio', connections: 'Connections', settings: 'Settings', notifications: 'Notifications', owner:'Owner console',
     'strategy-history': 'Strategy history', 'campaign-create': 'New campaign', 'campaign-edit': 'Edit campaign',
     'campaign-review': 'Campaign review', strategy: 'Build your strategy', 'strategy-result': 'Your strategy' };
   const title = document.querySelector('#workspacePageTitle');

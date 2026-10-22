@@ -166,7 +166,9 @@ class AuthService:
         self.dummy_hash, self.dummy_salt = hash_password(secrets.token_urlsafe(48))
 
     def migrate(self):
+        from backend.owner import init_owner_schema
         with closing(self.db()) as db, db:
+            init_owner_schema(db)
             columns = {r['name'] for r in db.execute('PRAGMA table_info(users)')}
             for name, definition in [('email_verified', 'INTEGER NOT NULL DEFAULT 0'),
                                      ('password_enabled', 'INTEGER NOT NULL DEFAULT 1')]:
@@ -270,10 +272,14 @@ class AuthService:
         return {'success': True, 'verification_required': True, 'message': GENERIC_MAIL}
 
     def session(self, db, uid, response, previous=''):
+        account=db.execute('SELECT account_status FROM users WHERE id=?',(uid,)).fetchone()
+        if not account or account['account_status'] != 'active':
+            raise HTTPException(403, 'This account is suspended. Contact the platform owner.')
         if previous:
             db.execute('DELETE FROM sessions WHERE token_hash=?', (digest(previous),))
         raw = secrets.token_urlsafe(48)
         now = datetime.utcnow()
+        db.execute('UPDATE users SET last_login_at=?,last_activity_at=? WHERE id=?', (now.isoformat(),now.isoformat(),uid))
         db.execute('DELETE FROM sessions WHERE expires_at <= ?', (now.isoformat(),))
         db.execute('INSERT INTO sessions(user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?)',
                    (uid, digest(raw), (now + timedelta(days=7)).isoformat(), now.isoformat()))
@@ -284,14 +290,22 @@ class AuthService:
         with closing(self.db()) as db:
             row = db.execute('''SELECT u.*, s.expires_at FROM users u JOIN sessions s ON s.user_id=u.id
                                 WHERE s.token_hash=?''', (digest(request.cookies.get(self.cookie, '')),)).fetchone()
-        if not row or datetime.fromisoformat(row['expires_at']) <= datetime.utcnow() or not row['email_verified']:
-            raise HTTPException(401, 'Please sign in to continue')
+            if not row or datetime.fromisoformat(row['expires_at']) <= datetime.utcnow() or not row['email_verified']:
+                raise HTTPException(401, 'Please sign in to continue')
+            if row['account_status'] != 'active':
+                raise HTTPException(403, 'This account is suspended. Contact the platform owner.')
+            now=datetime.utcnow()
+            cutoff=(now-timedelta(minutes=5)).isoformat()
+            if not row['last_activity_at'] or row['last_activity_at'] < cutoff:
+                with db:
+                    db.execute('UPDATE users SET last_activity_at=? WHERE id=? AND (last_activity_at IS NULL OR last_activity_at<?)',(now.isoformat(),row['id'],cutoff))
         return self.user(row)
 
     @staticmethod
     def user(row):
         return {key: row[key] for key in ('id', 'name', 'email')} | {
-            'email_verified': bool(row['email_verified']), 'password_enabled': bool(row['password_enabled'])}
+            'email_verified': bool(row['email_verified']), 'password_enabled': bool(row['password_enabled']),
+            'platform_role':row['platform_role'], 'account_status':row['account_status']}
 
     def providers(self):
         return {'google': bool(self.config.google_id and self.config.google_secret),

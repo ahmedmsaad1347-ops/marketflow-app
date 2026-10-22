@@ -23,9 +23,10 @@ from fastapi.exception_handlers import request_validation_exception_handler
 from pydantic import BaseModel, Field
 from typing import Optional
 from backend.budget_planner import CampaignPlanInput, campaign_plan, budget_label
-from backend.auth import AuthConfig, AuthService
+from backend.auth import AuthConfig, AuthService, digest as hash_session_token
 from backend.analytics import overview as build_analytics_overview
 from backend.creative_studio import init_creative_tables, register_creative_studio
+from backend.owner import init_owner_schema, register_owner
 
 load_dotenv()
 
@@ -41,7 +42,7 @@ app = FastAPI(
 
 @app.exception_handler(RequestValidationError)
 async def safe_validation_error(request, error):
-    if request.url.path.startswith(('/api/auth/', '/api/account/')):
+    if request.url.path.startswith(('/api/auth/', '/api/account/', '/api/owner/')):
         # Do not echo passwords, reset tokens or validation context in API errors.
         return JSONResponse({'detail': [{key: item[key] for key in ('loc', 'msg', 'type')}
                                         for item in error.errors()]}, status_code=422)
@@ -372,6 +373,7 @@ def init_db():
     """)
 
     init_creative_tables(db)
+    init_owner_schema(db)
     if 'planning_json' not in {row['name'] for row in db.execute('PRAGMA table_info(campaigns)')}:
         db.execute('ALTER TABLE campaigns ADD COLUMN planning_json TEXT')
     analytics_columns = {row['name'] for row in db.execute('PRAGMA table_info(analytics_daily)')}
@@ -1685,6 +1687,7 @@ def meta_callback(
     )
 
     db = get_db()
+    db.execute('BEGIN IMMEDIATE')
 
     state_row = db.execute("""
         SELECT *
@@ -1724,6 +1727,12 @@ def meta_callback(
         )
 
     user_id = state_row["user_id"]
+    account = db.execute('SELECT account_status FROM users WHERE id=?', (user_id,)).fetchone()
+    if not account or account['account_status'] != 'active':
+        db.execute('DELETE FROM oauth_states WHERE id=?', (state_row['id'],))
+        db.commit()
+        db.close()
+        raise HTTPException(403, 'This account is suspended. Contact the platform owner.')
 
     db.execute(
         """
@@ -1769,6 +1778,11 @@ def meta_callback(
     now = datetime.utcnow().isoformat()
 
     db = get_db()
+    db.execute('BEGIN IMMEDIATE')
+    account = db.execute('SELECT account_status FROM users WHERE id=?', (user_id,)).fetchone()
+    if not account or account['account_status'] != 'active':
+        db.close()
+        raise HTTPException(403, 'This account is suspended. Contact the platform owner.')
 
     db.execute("""
         INSERT INTO meta_tokens (
@@ -2270,3 +2284,4 @@ from backend.strategy_agent import register_strategy_agent
 register_strategy_agent(app, get_db, get_current_user)
 
 register_creative_studio(app, get_db, get_current_user, auth)
+register_owner(app, get_db, auth)

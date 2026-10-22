@@ -116,5 +116,44 @@
 .owner-dialog .owner-dialog-error { color:var(--mf-danger); }
 .owner-dialog-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:25px; }
 .owner-sr-only { position:absolute; top:0; left:0; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+.owner-care-presence { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:22px; margin:0; }
+.owner-care-presence dt { color:var(--mf-muted); font-size:11px; margin-bottom:9px; }
+.owner-care-presence dd { margin:0; color:var(--mf-text); font-size:12px; line-height:1.7; overflow-wrap:anywhere; }
+.owner-care-presence dd strong,.owner-care-presence dd small { display:block; }
+.owner-care-presence dd small { color:var(--mf-muted); font-size:10px; margin-top:5px; }
+.owner-care-grid { display:grid; grid-template-columns:minmax(0,1.1fr) minmax(0,1fr); gap:18px; align-items:start; }
+.owner-care-form { min-width:0; }
+.owner-care-form label { display:grid; gap:9px; margin:18px 0; color:var(--mf-text); font-size:12px; font-weight:550; min-width:0; }
+.owner-care-form label>small { color:var(--mf-muted); font-size:11px; font-weight:400; line-height:1.7; }
+.owner-care-form input,.owner-care-form select,.owner-care-form textarea { display:block; width:100%; min-width:0; max-width:100%; box-sizing:border-box; border:1px solid var(--mf-border); border-radius:8px; padding:11px 12px; font:inherit; font-weight:400; background:var(--mf-surface-soft); color:var(--mf-text); }
+.owner-care-form textarea { line-height:1.7; resize:vertical; }
+.owner-care-field-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+.owner-care-form>button { margin-top:4px; }
+.owner-care-notes { margin-top:24px; }
+.owner-care-notes>article { border-top:1px solid var(--mf-border); padding:17px 0; }
+.owner-care-copy { font-size:12px; color:var(--mf-text); white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.8; margin:0 0 9px; }
+.owner-care-notes small { color:var(--mf-muted); font-size:10px; }
+.owner-care-activity { list-style:none; padding:0; margin:0; }
+.owner-care-activity>li { display:flex; gap:12px; padding:15px 0; border-bottom:1px solid var(--mf-border); }
+.owner-care-activity>li:last-child { border:0; }
+.owner-care-activity>li>span { color:var(--mf-faint); }
+.owner-care-activity>li>div { min-width:0; }
+.owner-care-activity strong { color:var(--mf-text); font-size:12px; display:block; overflow-wrap:anywhere; }
+.owner-care-activity p,.owner-care-activity time { color:var(--mf-muted); font-size:10px; margin:7px 0; line-height:1.7; }
+.owner-support-summary { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; margin-bottom:18px; }
+.owner-support-filters { display:flex; gap:14px; align-items:flex-end; flex-wrap:wrap; padding-bottom:22px; border-bottom:1px solid var(--mf-border); margin-bottom:24px; }
+.owner-support-filters label { flex:1; min-width:140px; margin:0; }
+.owner-support-filters>button { min-height:40px; }
+.owner-support-list { display:grid; gap:17px; }
+.owner-support-ticket { padding:20px; border:1px solid var(--mf-border); border-radius:12px; background:var(--mf-surface-soft); min-width:0; }
+.owner-ticket-heading { display:flex; justify-content:space-between; align-items:flex-start; gap:18px; margin-bottom:16px; }
+.owner-ticket-heading>div { min-width:0; }
+.owner-ticket-number { color:var(--mf-muted); font-size:9px; letter-spacing:1px; }
+.owner-ticket-heading h3 { color:var(--mf-text); font-size:16px; margin:8px 0; line-height:1.6; overflow-wrap:anywhere; }
+.owner-ticket-heading p { color:var(--mf-muted); font-size:11px; line-height:1.7; overflow-wrap:anywhere; margin:0; }
+.owner-ticket-heading .owner-inline-badges { justify-content:flex-end; margin-top:0; }
+.owner-ticket-actions { display:flex; flex-wrap:wrap; gap:9px; }
+.owner-ticket-update { padding-top:1px; }
 @media(max-width:1100px) { .owner-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }.owner-overview-grid { grid-template-columns:1fr; }.owner-detail-grid { grid-template-columns:1fr; } }
+@media(max-width:760px) { .owner-care-grid { grid-template-columns:1fr; }.owner-care-presence { grid-template-columns:1fr; gap:19px; }.owner-care-field-grid { grid-template-columns:1fr; gap:0; }.owner-ticket-heading { flex-direction:column; gap:9px; }.owner-ticket-heading .owner-inline-badges { justify-content:flex-start; }.owner-support-ticket { padding:16px; }.owner-support-filters label { flex-basis:100%; } }
 @media(max-width:600px) { .owner-access-banner { align-items:flex-start; flex-direction:column; gap:8px; }.owner-metric { padding:17px; }.owner-metric>span { font-size:10px; }.owner-metric>strong { font-size:28px; }.owner-metric>small { font-size:9px; }.owner-card { padding:19px; }.owner-card-heading { flex-wrap:wrap; gap:12px; }.owner-card-heading h2 { font-size:18px; }.owner-card-heading .owner-chart-legend { width:100%; }.owner-chart { gap:4px; height:200px; }.owner-chart-day>small { font-size:7px; writing-mode:vertical-rl; margin-inline:auto; padding-block:8px; }.owner-chart-day>div { height:calc(100% - 48px); }.owner-navigation>button { padding:10px 12px; }.owner-customer-summary { gap:25px; }.owner-record-facts { grid-template-columns:1fr; }.owner-audit-list>article { flex-wrap:wrap; }.owner-audit-list time { margin-left:34px; }.owner-dialog { padding:22px; }.owner-dialog-actions { flex-wrap:wrap; }.owner-overview-grid { gap:0; }.owner-search input { flex-basis:100%; } }

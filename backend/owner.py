@@ -16,9 +16,11 @@ STARTED = time.monotonic()
 
 
 def init_owner_schema(db):
+    from backend.customer_care import init_customer_care_schema
     columns = {row['name'] for row in db.execute('PRAGMA table_info(users)')}
     for name, definition in [('platform_role', "TEXT NOT NULL DEFAULT 'member'"),
-                             ('account_status', "TEXT NOT NULL DEFAULT 'active'")]:
+                             ('account_status', "TEXT NOT NULL DEFAULT 'active'"),
+                             ('last_login_at', 'TEXT'), ('last_activity_at', 'TEXT')]:
         if name not in columns:
             db.execute(f'ALTER TABLE users ADD COLUMN {name} {definition}')
     db.executescript('''
@@ -34,6 +36,7 @@ def init_owner_schema(db):
             id INTEGER PRIMARY KEY AUTOINCREMENT, method TEXT NOT NULL,
             path TEXT NOT NULL, status INTEGER NOT NULL, created_at TEXT NOT NULL);
     ''')
+    init_customer_care_schema(db)
 
 
 def audit(db, actor, action, kind, target=None, **details):
@@ -211,10 +214,12 @@ def register_owner(app, get_db, auth):
 
     @app.get('/api/owner/users/{uid}')
     def user_detail(uid:int, user=Depends(require_owner)):
+        from backend.customer_care import customer_care_snapshot
         with closing(get_db()) as db, db:
             row = db.execute('SELECT * FROM users WHERE id=?',(uid,)).fetchone()
             if not row:raise HTTPException(404,'Account not found.')
             result = {'success':True,'user':user_data(db,row)}
+            result['care'] = customer_care_snapshot(db,uid)
             for key,table,fields in [('campaigns','campaigns','id,name,status,platform,budget,goal,created_at'),('creative','creative_projects','id,title,created_at'),('strategies','marketing_strategies','id,status,created_at')]:
                 result[key] = [dict(item) for item in db.execute(f'SELECT {fields} FROM {table} WHERE user_id=? ORDER BY id DESC LIMIT 20',(uid,))] if table_exists(db,table) else []
             audit(db,user['id'],'owner.user_view','user',uid)
@@ -318,3 +323,6 @@ def register_owner(app, get_db, auth):
             db.execute('UPDATE platform_settings SET announcement=?,maintenance=? WHERE id=1',(data.announcement.strip(),int(data.maintenance)))
             audit(db,user['id'],'owner.settings','platform',1,maintenance=data.maintenance,previous_maintenance=bool(previous),announcement_changed=True,reason=data.reason.strip())
         return {'success':True}
+
+    from backend.customer_care import register_customer_care
+    register_customer_care(app,get_db,auth,require_owner)

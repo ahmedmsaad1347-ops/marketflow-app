@@ -1,7 +1,7 @@
 import { ownerRequest } from '../services/api.js';
 import {
   ownerShellView, ownerLoadingView, ownerOverviewView, ownerUsersView, ownerUserView,
-  ownerRecordsView, ownerRecordView, ownerAuditView, ownerSettingsView, ownerDialogView,
+  ownerRecordsView, ownerRecordView, ownerAuditView, ownerSettingsView, ownerDialogView, ownerSupportView,
 } from '../views/ownerView.js';
 
 export async function mountOwnerDashboard(container, currentUser) {
@@ -11,8 +11,8 @@ export async function mountOwnerDashboard(container, currentUser) {
   }
   container.innerHTML = ownerShellView(currentUser);
   const root=container.querySelector('.owner-console'), panel=root.querySelector('#ownerPanel'), notice=root.querySelector('#ownerNotice');
-  const state={tab:'overview',page:1,query:'',kind:'creative',detail:null};
-  let generation=0, currentData=null, activeDialog=null;
+  const state={tab:'overview',page:1,query:'',kind:'creative',detail:null,supportStatus:'open',supportPriority:'all'};
+  let generation=0, currentData=null, activeDialog=null, careBusy=false;
   const announce=(message,error=false)=>{
     notice.textContent=message;notice.hidden=!message;notice.classList.toggle('is-error',error);
   };
@@ -30,6 +30,7 @@ export async function mountOwnerDashboard(container, currentUser) {
     if(state.detail)path=state.detail.type==='user'?`/users/${state.detail.id}`:`/records/${state.detail.kind}/${state.detail.id}`;
     else if(state.tab==='overview')path='/overview';
     else if(state.tab==='users')path=`/users?q=${encodeURIComponent(state.query)}&page=${state.page}`;
+    else if(state.tab==='support')path=`/support?status=${state.supportStatus}&priority=${state.supportPriority}&page=${state.page}`;
     else if(['campaigns','content'].includes(state.tab))path=`/records?kind=${state.tab==='campaigns'?'campaigns':state.kind}&page=${state.page}`;
     else if(state.tab==='activity')path=`/audit?page=${state.page}`;
     else path='/settings';
@@ -41,6 +42,7 @@ export async function mountOwnerDashboard(container, currentUser) {
       if(state.detail)panel.innerHTML=state.detail.type==='user'?ownerUserView(data,currentUser):ownerRecordView(data.record);
       else if(state.tab==='overview')panel.innerHTML=ownerOverviewView(data.overview);
       else if(state.tab==='users')panel.innerHTML=ownerUsersView(data,state.query);
+      else if(state.tab==='support')panel.innerHTML=ownerSupportView(data,{status:state.supportStatus,priority:state.supportPriority});
       else if(['campaigns','content'].includes(state.tab))panel.innerHTML=ownerRecordsView(data,state.tab==='campaigns'?'campaigns':state.kind,state.tab==='content');
       else if(state.tab==='activity')panel.innerHTML=ownerAuditView(data);
       else panel.innerHTML=ownerSettingsView(data);
@@ -115,6 +117,34 @@ export async function mountOwnerDashboard(container, currentUser) {
   });
 
   root.addEventListener('submit',async event=>{
+    if(event.target.id==='ownerSupportFilters'){
+      event.preventDefault();state.supportStatus=event.target.elements.status.value;state.supportPriority=event.target.elements.priority.value;state.page=1;announce('');await load();
+    }
+    const serviceForm=event.target.dataset.ownerForm;
+    if(['care-note','care-ticket','support-update'].includes(serviceForm)){
+      event.preventDefault();const form=event.target;
+      if(careBusy||!form.reportValidity())return;
+      const blankField=['body','subject','description'].map(name=>form.elements[name]).find(field=>field?.required&&!field.value.trim());
+      if(blankField){announce('Add a non-empty note, subject or service context before saving.',true);blankField.focus();return;}
+      const submit=form.querySelector('[type=submit]');submit.disabled=true;careBusy=true;
+      const viewKey=()=>`${state.tab}:${state.detail?.type||''}:${state.detail?.id||''}`;
+      const originalView=viewKey();
+      const drafts=[...root.querySelectorAll('form[data-owner-form]')].filter(item=>item!==form).map(item=>({id:item.id,values:Object.fromEntries(new FormData(item))}));
+      const values=Object.fromEntries(new FormData(form));
+      let path,method='POST',payload,message;
+      if(serviceForm==='care-note'){path=`/customers/${form.dataset.userId}/notes`;payload={body:values.body};message='Private customer note saved.';}
+      else if(serviceForm==='care-ticket'){path=`/customers/${form.dataset.userId}/tickets`;payload={subject:values.subject,description:values.description,priority:values.priority,due_at:values.due_at||null};message='Internal customer follow-up created.';}
+      else {path=`/support/${form.dataset.ticketId}`;method='PATCH';payload={status:values.status,priority:values.priority,due_at:values.due_at||null};message='Customer follow-up updated.';}
+      try{
+        await request(path,method,payload);if(!root.isConnected)return;
+        announce(message);
+        if(viewKey()===originalView){
+          await load();
+          for(const draft of drafts){const nextForm=root.querySelector(`#${draft.id}`);if(nextForm)for(const [key,value] of Object.entries(draft.values))if(nextForm.elements[key])nextForm.elements[key].value=value;}
+        }
+      }catch(error){if(root.isConnected)announce(error.message||'Could not save this customer care update.',true);}
+      finally{careBusy=false;if(submit.isConnected)submit.disabled=false;}
+    }
     if(event.target.id==='ownerSearchForm'){
       event.preventDefault();state.query=event.target.elements.query.value.trim();state.page=1;announce('');await load();
     }

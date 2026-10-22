@@ -92,3 +92,7 @@ Each stage needs its own acceptance checks before being called complete.
 ## Owner console — 2026-10-21
 
 Added a role-protected owner workspace with real platform counts, account suspension/restoration and session revocation, audited campaign/content/strategy review, paginated creative history, announcements, customer-write maintenance controls and bounded sanitized error telemetry. First-owner setup is local, requires an existing verified account/password and does not auto-grant signup privileges. Customer API isolation remains unchanged. See [owner console](owner-console.md). Validation:136 unit/API tests (17 owner cases), production build and actual-backend browser checks in both themes across320/390/768/1440px. Actual phone owner activation is pending deployment.
+
+## Customer care — 2026-10-22
+
+Owner accounts can review each customer's recorded sign-in, sampled platform activity and saved work, add private notes, and manage internal service follow-ups by priority, due date and status. The queue shows actual open/overdue counts with filters and pagination. No messages are sent externally. See [customer care](owner-customer-care.md). The combined owner/customer-care release passes147 unit/API tests, the production build and the complete real-backend browser journey across both themes and320/390/768/1440px. Phone activation remains a separate local step.
